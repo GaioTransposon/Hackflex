@@ -5,6 +5,9 @@ setwd("~/Desktop/MG1655/MG1655_final")
 # Price per sample comparison:
 
 library(readr)
+library(dplyr)
+library(weights)
+
 price_per_sample_comparison <- read_csv("price_per_sample_comparison.csv")
 
 pdf("price_per_sample.pdf")
@@ -49,7 +52,6 @@ dev.off()
 
 # Barcode count distribution
 
-library(readr)
 barcode_count <- read_csv("barcode_count.csv", col_names = FALSE)
 
 summary(barcode_count$X2)
@@ -120,7 +122,6 @@ dev.off()
 
 # Barcode GC content:
 
-library("readr")
 barcodes_GC <- read_delim("barcodes_GC.txt", "\t", escape_double = FALSE, col_names = FALSE, trim_ws = TRUE)
 
 #plot
@@ -134,13 +135,11 @@ dev.off()
 #regress.lm = lm(barcode_count$X2 ~ barcodes_GC$X4, weights=barcode_count$X2)
 #summary(regress.lm)
 
-library(dplyr)
 new_frame <- barcodes_GC%>% filter(X4>0.3&X4<0.7)
 nrow(new_frame)/96*100
 #it means that 79.2% of the barcodes (76/96) have between a 30% and 70% GC content
 
 #pearson coefficient of correlation
-library(weights)
 barcodes_GC_pearson <- wtd.cor(barcodes_GC$X4,barcode_count$X2,weight=barcode_count$X2)
 
 a = paste0("Barcodes GC content:")
@@ -189,10 +188,10 @@ dev.off()
 
 # PHRED scores
 
-if (!requireNamespace("BiocManager", quietly = TRUE))
-  install.packages("BiocManager")
-BiocManager::install()
-install.packages("Rsubread")
+# if (!requireNamespace("BiocManager", quietly = TRUE))
+#   install.packages("BiocManager")
+# BiocManager::install()
+# install.packages("Rsubread")
 library(Rsubread)
 
 #here already swapped L1 L2 (incl edited nreads)
