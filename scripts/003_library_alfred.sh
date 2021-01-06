@@ -1,15 +1,15 @@
 ##########################
 ## execution example
-## export mydir=/shared/homes/12705859/hackflex_libs/saureus
-## export ref_genome=/shared/homes/12705859/hackflex_libs/saureus/Saureus.fa
-## qsub -V library_alfred.sh
+## export mydir=/shared/homes/12705859/hackflex_libs/ecoli/main
+## export ref_genome=/shared/homes/12705859/hackflex_libs/ecoli/main/assembly.fasta
+## qsub -V 003_library_alfred.sh
 ##########################
 
 #!/bin/bash
 #PBS -l ncpus=10
 #PBS -l walltime=10:00:00
 #PBS -l mem=10g
-#PBS -N library_alfred
+#PBS -N 003_library_alfred
 #PBS -M daniela.gaio@student.uts.edu.au
 
 source activate py_3.5
@@ -22,7 +22,7 @@ do
 filename=$(basename $file)
 N="${filename%.*}"
 echo $file
-alfred qc -r Saureus.fa -o qc_$N $file    # replace ref with $ref_genome
+alfred qc -r $ref_genome -o qc_$N $file    # replace ref with $ref_genome
 done
 
 for file in `ls qc_*`

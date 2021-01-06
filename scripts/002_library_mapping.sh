@@ -1,15 +1,15 @@
 ##########################
 ## execution example
-## export mydir=/shared/homes/12705859/hackflex_libs/saureus
-## export ref_genome=/shared/homes/12705859/hackflex_libs/saureus/Saureus.fa
-## qsub -V library_mapping.sh
+## export mydir=/shared/homes/12705859/hackflex_libs/ecoli/main
+## export ref_genome=/shared/homes/12705859/hackflex_libs/ecoli/main/assembly.fasta
+## qsub -V 002_library_mapping.sh
 ##########################
 
 #!/bin/bash
 #PBS -l ncpus=10
 #PBS -l walltime=10:00:00
 #PBS -l mem=10g
-#PBS -N library_mapping
+#PBS -N 002_library_mapping
 #PBS -M daniela.gaio@student.uts.edu.au
 
 source activate py_3.5
@@ -22,11 +22,11 @@ bwa index $ref_genome
 
 
 # map interleaved clean library to reference genome
-for library in `ls reduced*.fastq`
+for library in `ls reduced*`
 do
 filename_lib=$(basename $library)
 lib="${filename_lib%.*}"
-bwa mem -p Saureus.fa $library > $lib.sam # S. aureus to be replaced with $ref_genome
+bwa mem -p $ref_genome $library > $lib.sam # S. aureus to be replaced with $ref_genome
 done
 
 
@@ -37,16 +37,6 @@ filename_lib=$(basename $library)
 lib="${filename_lib%.*}"
 samtools view -Sb $library | samtools sort -o $lib.bam
 done
-
-
-# run flagstat & save output 
-rm flagstat_out.txt
-( for i in *.bam ; 
-do 
-echo "##############"
-echo $i
-samtools flagstat $i
-done) > flagstat_out.txt
 
 
 # samtools index and sort:
@@ -88,6 +78,15 @@ echo $lib >> dups_stats.txt
 samtools markdup -r -s $library $lib.dedup.bam &>> dups_stats.txt
 done
 
+
+# run flagstat & save output 
+rm flagstat_out*
+for file in `ls *.dedup.bam`
+do
+filename=$(basename $file)
+N="${filename%.*}"
+samtools flagstat $file > flagstat_out_$N.txt
+done
 
 # samtools mpileup & generate tab file for ALFRED:
 for library in `ls *.dedup.bam`

@@ -1,5 +1,5 @@
 
-setwd("~/Desktop/MG1655/Kay_libs/")
+setwd("~/Desktop/MG1655/hackflex_libs/")
 ########################################
 
 # PHRED scores
@@ -209,66 +209,7 @@ names(Low_cov_all) <- c("Reference genome position", "Reads", "Library")
 #save low coverage areas as a .csv
 write.csv(Low_cov_all, file = "Low_cov_all_new.csv",row.names=FALSE)
 
-########################################
-########################################
 
-# Fragment size:
-
-library(readr)
-frag_sizes_nextera1 <- read.table("frag_sizes_K1.txt", quote="\"", comment.char="")
-frag_sizes_nextera2 <- read.table("frag_sizes_K3.txt", quote="\"", comment.char="")
-frag_sizes_hackflex <- read.table("frag_sizes_K9.txt", quote="\"", comment.char="")
-
-#subset to positive numbers only
-pos_L1 <- subset(frag_sizes_nextera1, frag_sizes_nextera2$V1 > 0)
-pos_L2 <- subset(frag_sizes_nextera2, frag_sizes_nextera1$V1 > 0)
-pos_H <- subset(frag_sizes_hackflex, frag_sizes_hackflex$V1 > 0)
-
-#add column with sequential numbers to each dataset
-library(dplyr)
-newL1 <- cbind( pos_L1, order=seq(nrow(pos_L1)) ) 
-newL2 <- cbind( pos_L2, order=seq(nrow(pos_L2)) ) 
-newH <- cbind( pos_H, order=seq(nrow(pos_H)) ) 
-
-#join datasets (missing rows will be filled with NA)
-L1L2<- dplyr::full_join(newL1, newL2, by = "order")
-L1L2H <- dplyr::full_join(L1L2, newH, by = "order")
-
-#rename columns
-newcolnames_L1L2H <- L1L2H %>% 
-  rename(
-    L1 = V1.x,
-    L2 = V1.y,
-    H = V1
-  )
-
-#convert to long format (1 variable per row)
-library("reshape2")
-test_data_long <- melt(newcolnames_L1L2H, id="order") 
-
-#replace variable names with names for plot
-library(stringr)
-test_data_long$variable <- str_replace_all(test_data_long$variable, "L1", "Standard Flex")
-test_data_long$variable <- str_replace_all(test_data_long$variable, "L2", "1:50 Flex")
-test_data_long$variable <- str_replace_all(test_data_long$variable, "H", "Hackflex")
-
-#plot
-library(ggplot2)
-pdf('fragment_size_new.pdf')
-libs <- c("Standard Flex", "1:50 Flex", "Hackflex")
-ds <- subset(test_data_long, variable %in% libs & ! is.na(value))
-p  <- ggplot(ds, aes(value, colour=variable, fill=variable)) + scale_x_continuous(limits=c(0,1000)) + xlab("fragment size (bp)")
-q  <- p + geom_density(alpha=0.55)
-r <- q + theme_bw() + theme(panel.border = element_blank(), panel.grid.major = element_blank(), panel.grid.minor = element_blank(), axis.line = element_line(colour = "black"))
-s <- r + theme(legend.title = element_blank()) 
-t <- s + theme(axis.text=element_text(size=12),
-               axis.title=element_text(size=14))
-t
-dev.off()
-
-
-###############################################################
-###############################################################
 
 
 # Number of reads from .bam : cleaned reads 

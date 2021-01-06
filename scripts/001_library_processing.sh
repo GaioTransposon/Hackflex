@@ -1,27 +1,31 @@
 ##########################
 ## execution example
-## export mydir=/shared/homes/12705859/hackflex_libs/saureus
-## qsub -V library_processing.sh
+## export mydir=/shared/homes/12705859/hackflex_libs/ecoli/main
+## qsub -V 001_library_processing.sh
 ##########################
 
 #!/bin/bash
 #PBS -l ncpus=10
 #PBS -l walltime=10:00:00
 #PBS -l mem=10g
-#PBS -N library_processing
+#PBS -N 001_library_processing
 #PBS -M daniela.gaio@student.uts.edu.au
 
 source activate py_3.5
 
 cd $mydir
 
+# create forward_reverse.txt file based on files in directory: 
+ls *R1.fastq > forward
+ls *R2.fastq > reverse
+paste forward reverse > forward_reverse.txt
 
 # interleave the pair-end libraries: 
 while read  first  second
 do
 filename_R1=$(basename $first)
 R1="${filename_R1%.*}"
-bbmerge.sh in1=$first in2=$second out=interleaved_$R1.fastq
+reformat.sh in1=$first in2=$second out=interleaved2_$R1.fastq
 done < "forward_reverse.txt"
 
 
