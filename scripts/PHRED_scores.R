@@ -19,6 +19,7 @@ reads = grep(list.files(mydir,pattern="(R1.fastq.gz|R2.fastq.gz)"), # pattern to
              pattern='interleaved', # pattern to ignore
              invert=TRUE, value=TRUE)
 
+
 # construct an empty dataframe to build on 
 df_to_fill <- data.frame(
   read_position = numeric(),
@@ -27,7 +28,7 @@ df_to_fill <- data.frame(
   stringsAsFactors = FALSE
 )
 
-for (read in reads[1:2]) {
+for (read in reads) {
   
   print(read)
 
@@ -52,4 +53,3 @@ for (read in reads[1:2]) {
 
 # save the results 
 fwrite(x = df_to_fill, file= file.path(mydir,"PHRED_scores.csv"))
-

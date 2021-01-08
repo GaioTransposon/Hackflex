@@ -15,7 +15,28 @@ library(stringr)
 
 
 # set directories
-mydir <- "~/Desktop/MG1655/goal_dilution/"
+# mydir <- "~/Desktop/MG1655/goal_dilution/ecoli/"
+# phred_dir <- "~/Desktop/MG1655/raw_libs/"
+
+# mydir <- "~/Desktop/MG1655/goal_dilution/paeruginosa/"
+# phred_dir <- "~/Desktop/MG1655/raw_libs/"
+
+mydir <- "~/Desktop/MG1655/goal_dilution/saureus/"
+phred_dir <- "~/Desktop/MG1655/raw_libs/"
+
+# mydir <- "~/Desktop/MG1655/goal_polymerase/"
+# phred_dir <- "~/Desktop/MG1655/raw_libs/"
+# 
+# mydir <- "~/Desktop/MG1655/goal_KAPA/"
+# phred_dir <- "~/Desktop/MG1655/raw_libs/"
+# 
+# mydir <- "~/Desktop/MG1655/goal_hackflex/ecoli/"
+# phred_dir <- "~/Desktop/MG1655/raw_libs/"
+# 
+# mydir <- "~/Desktop/MG1655/goal_hackflex/paeruginosa/"
+# phred_dir <- "~/Desktop/MG1655/raw_libs/"
+# 
+mydir <- "~/Desktop/MG1655/goal_hackflex/saureus/"
 phred_dir <- "~/Desktop/MG1655/raw_libs/"
 
 ########################################
@@ -25,7 +46,7 @@ phred_dir <- "~/Desktop/MG1655/raw_libs/"
 # Coverage: 
 
 
-cov_files <- grep(list.files(middle_dir,pattern="^reduced_trimmed2_trimmed_interleaved2_"), 
+cov_files <- grep(list.files(mydir,pattern="^reduced_trimmed2_trimmed_interleaved2_"), 
                   pattern='.tsv', value=TRUE)
 
 # Coverage:
@@ -42,7 +63,7 @@ for (cov_file in cov_files) {
   
   print(cov_file)
   
-  coverage <-read.table(file.path(mydir,"reduced_trimmed2_trimmed_interleaved2_K1_R1.dedup.tsv"))
+  coverage <-read.table(file.path(mydir,cov_file))
   
   colnames(coverage) <- c("position","coverage")
   
@@ -53,16 +74,51 @@ for (cov_file in cov_files) {
   
 }
 
-# plot
-pdf(paste0(mydir,'coverage.pdf'))
-ggplot(df_to_fill, aes(x=coverage, color=library)) +
+p1 <- ggplot(df_to_fill, aes(x=coverage, color=library)) +
   geom_histogram(fill="white", alpha=0.5,
                  position="identity",
                  binwidth=1)+
   facet_grid(rows = vars(library)) +
+  theme(legend.position="top",
+        legend.title = element_blank())+
   xlim(0,100) +
   labs(x="coverage per site",
        y="Frequency")
+
+p2 <- df_to_fill %>% 
+  dplyr::filter(coverage <= 3) %>%
+  ggplot(., aes(x=coverage, color=library)) +
+  geom_histogram(fill="white", alpha=0.5,
+                 position="identity",
+                 binwidth=1)+
+  facet_grid(rows = vars(library)) +
+  theme(legend.position="none")+
+  xlim(0,4) +
+  labs(x="coverage per site",
+       y="Frequency")
+
+p3 <- df_to_fill %>% 
+  dplyr::filter(coverage <= 3) %>%
+  ggplot(., aes(x=coverage, color=library)) +
+  geom_histogram(fill="white", alpha=0.5,
+                 position="identity",
+                 binwidth=1)+
+  facet_grid(rows = vars(library), scales = "free_y") +
+  theme(legend.position="none")+
+  xlim(0,4) +
+  labs(x="coverage per site",
+       y="Frequency")
+
+
+
+
+# plot
+pdf(paste0(mydir,'coverage.pdf'))
+ggarrange(p1,                                                 # First row with first plot
+          ggarrange(p2, p3, ncol = 2, labels = c("B", "C")), # Second row with 2 plots
+          nrow = 2, 
+          labels = "A"                                        # Labels of the first plot
+)
 dev.off()
 
 
@@ -119,7 +175,7 @@ ggplot(ds, aes(V1, colour=library, fill=library)) +
         panel.grid.minor = element_blank(), 
         axis.line = element_line(colour = "black"),
         legend.title = element_blank(),
-        legend.position = "right",
+        legend.position = "top",
         axis.text=element_text(size=12),
         axis.title=element_text(size=14))
 dev.off()
@@ -131,7 +187,7 @@ dev.off()
 
 # GC content: 
 
-gc_files = list.files(mydir,pattern="GC_")
+gc_files = list.files(mydir,pattern="GC_qc")
 flagstat_files = list.files(mydir,pattern="flagstat")
 
 myDF <- data.frame(gc_files,flagstat_files, stringsAsFactors = F)
@@ -177,9 +233,8 @@ for (row in 1:nrow(myDF)) {
 
 big_data = do.call(rbind, datalist)
 
-# plot
-pdf(paste0(mydir,'GC_content.pdf'))
-big_data %>% 
+
+smooth_GC <- big_data %>% 
   dplyr::filter(diff!=1) %>% 
   ggplot(.,aes(x=GCcontent,y=diff,color=lib))+
   geom_point(alpha=0.3)+
@@ -187,9 +242,10 @@ big_data %>%
   xlim(0.1,0.9) +
   geom_smooth() +
   ylab("ratio observed/expected reads") +
-  theme(legend.title = element_blank()) +
+  theme(legend.position="none") +
   stat_cor(p.accuracy = 0.001, r.accuracy = 0.01)
-big_data %>% 
+
+straight_GC <- big_data %>% 
   dplyr::filter(diff!=1) %>% 
   ggplot(.,aes(x=GCcontent,y=diff,color=lib))+
   geom_point(alpha=0.3)+
@@ -197,8 +253,15 @@ big_data %>%
   xlim(0.1,0.9) +
   stat_smooth(method="lm", se=FALSE) +
   ylab("ratio observed/expected reads") +
-  theme(legend.title = element_blank()) +
+  theme(legend.title = element_blank(),
+        legend.position="top") +
   stat_cor(p.accuracy = 0.001, r.accuracy = 0.01)
+
+
+# plot
+pdf(paste0(mydir,'GC_content.pdf'))
+ggarrange(smooth_GC, straight_GC, 
+          nrow = 2)
 dev.off()
 
 
@@ -212,26 +275,31 @@ PHRED_df <- read_csv(file.path(phred_dir,"PHRED_scores.csv"))
 head(PHRED_df)
 
 # subset to contain only libraries that are of interest in this script
+libs_here <- substr(tools::file_path_sans_ext(unique(big_data$lib)), start = 1, stop = 3)
 
-
+PHRED_df_sub <- PHRED_df %>% 
+  dplyr::filter(str_detect(library, str_c(libs_here, collapse="|")))
+  
+  
 # #plot
-# pdf(paste0(mydir,'PHRED_scores_raw_reads.pdf'))
-# ggplot(PHRED_df, 
-#        aes(x=read_position, y=PHRED_means, group=library, colour=library ) ) + 
-#   geom_line(size=1, alpha=0.5) + 
-#   xlab("read position (bp)") +
-#   ylab("average PHRED score") +
-#   theme_bw() + 
-#   theme(panel.border = element_blank(), 
-#         panel.grid.major = element_blank(), 
-#         panel.grid.minor = element_blank(), 
-#         axis.line = element_line(colour = "black"),
-#         legend.title = element_text(),
-#         axis.text=element_text(size=14),
-#         axis.title=element_text(size=18)) #+
-# #scale_x_continuous(breaks = c(0,50,100,150,200,250,300), lim = c(0, 300)) #+
-# #scale_y_continuous(breaks = c(30,32,34,36,38), lim = c(29, 38))
-# dev.off()
+pdf(paste0(mydir,'PHRED_scores_raw_reads.pdf'))
+ggplot(PHRED_df_sub,
+       aes(x=read_position, y=PHRED_means, group=library, colour=library ) ) +
+  geom_line(size=1, alpha=0.5) +
+  xlab("read position (bp)") +
+  ylab("average PHRED score") +
+  theme_bw() +
+  theme(panel.border = element_blank(),
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        axis.line = element_line(colour = "black"),
+        legend.position="top",
+        legend.title = element_blank(),
+        axis.text=element_text(size=14),
+        axis.title=element_text(size=18)) +
+scale_x_continuous(breaks = c(0,50,100,150,200,250,300), lim = c(0, 300)) +
+scale_y_continuous(breaks = c(30,32,34,36,38), lim = c(29, 38))
+dev.off()
 
 
 

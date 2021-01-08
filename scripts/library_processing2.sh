@@ -104,7 +104,7 @@ done
 
 
 
-################################ PART 2 ################################
+################################ PART 2.0 ################################
 
 
 # index the reference genome
@@ -169,17 +169,114 @@ samtools markdup -r -s $library $lib.dedup.bam &>> dups_stats.txt
 done
 
 
+
+################################ PART 2.1 ################################
+
+
+# return fastq files
+for library in *.dedup.bam ;
+do
+filename_lib=$(basename $library)
+lib="${filename_lib%.*}"
+samtools fastq $library > $lib.fastq
+done
+
+
+# get number of reads  
+rm reads_after_clean2*
+for library in `ls reduced_trimmed2*.fastq`
+do
+echo "$library" >> reads_after_cleaning2_col1
+cat $library | wc -l >> reads_after_cleaning2_col2
+done
+paste reads_after_cleaning2_col* | column -s $'\t' -t > reads_after_cleaning2
+# divide the line count by 4 --> number of reads 
+cat reads_after_cleaning2 | awk '{print $1,$2/4}' > reads_after_cleaning2.tsv
+
+
+# open last file created "reads_after_cleaning2"; 
+# find smallest library (bases=reads*300) $ save the base count
+export smallest_lib_bases=`cat reads_after_cleaning2.tsv | awk '{print $2*300}' | sort -n | head -n 1`
+for library in `ls reduced_trimmed2_*.fastq`
+do
+filename_lib=$(basename $library)
+lib="${filename_lib%.*}"
+reformat.sh int=t -samplebasestarget=$smallest_lib_bases in=$library out=reduced2\_$lib
+done
+
+
+# map interleaved clean library to reference genome
+for library in `ls reduced2*`
+do
+filename_lib=$(basename $library)
+lib="${filename_lib%.*}"
+bwa mem -p $ref_genome $library > $lib.sam 
+done
+
+
+# create .bam
+for library in `ls reduced2*.sam`
+do
+filename_lib=$(basename $library)
+lib="${filename_lib%.*}"
+samtools view -Sb $library | samtools sort -o $lib.bam
+done
+
+
+# samtools index and sort:
+for library in `ls reduced2*.bam`
+do
+filename_lib=$(basename $library)
+lib="${filename_lib%.*}"
+samtools index $library
+samtools sort -n -o $lib.namesort $library
+done
+
+
+# samtools fixmate:
+for library in `ls reduced2*.namesort`
+do
+filename_lib=$(basename $library)
+lib="${filename_lib%.*}"
+samtools fixmate -m $library $lib.fixmate
+done
+
+
+# samtools re-sort:
+for library in `ls reduced2*.fixmate`
+do
+filename_lib=$(basename $library)
+lib="${filename_lib%.*}"
+samtools sort -o $lib.positionsort $library
+done
+
+
+# samtools remove dups:
+rm dups_stats2.txt
+for library in reduced2*.positionsort ;
+do
+filename_lib=$(basename $library)
+lib="${filename_lib%.*}"
+echo "##############" >> dups_stats2.txt
+echo $lib >> dups_stats2.txt
+samtools markdup -r -s $library $lib.dedup.bam &>> dups_stats2.txt
+done
+
+################################ PART 2.2 ################################
+
+
 # run flagstat & save output 
 rm flagstat_out*
-for file in `ls *.dedup.bam`
+for file in `ls reduced2*.dedup.bam`
 do
 filename=$(basename $file)
 N="${filename%.*}"
 samtools flagstat $file > flagstat_out_$N.txt
 done
 
+
 # samtools mpileup & generate tab file for ALFRED:
-for library in `ls *.dedup.bam`
+for library in `ls reduced2*.dedup.bam`
 do
 filename_lib=$(basename $library)
 lib="${filename_lib%.*}"
@@ -189,7 +286,7 @@ done
 
 # get number of reads: 
 rm final_read_counts*
-for library in `ls *dedup.tsv*`
+for library in `ls reduced2*dedup.tsv*`
 do
 echo "$library" >> final_read_counts_col1
 cat $library | wc -l >> final_read_counts_col2
@@ -199,7 +296,7 @@ cat final_read_counts | awk '{print $1,$2,$2/4}' > final_read_counts.tsv
 
 
 # get fragment sizes: 
-for file in `ls *.dedup.bam`
+for file in `ls reduced2*.dedup.bam`
 do
 filename=$(basename $file)
 N="${filename%.*}"
@@ -210,13 +307,14 @@ done
 
 ################################ PART 3 ################################
 
-for file in `ls *dedup.bam`
+for file in `ls reduced2*dedup.bam`
 do
 filename=$(basename $file)
 N="${filename%.*}"
 echo $file
 alfred qc -r $ref_genome -o qc_$N $file    # replace ref with $ref_genome
 done
+
 
 for file in `ls qc_*`
 do
@@ -236,33 +334,32 @@ mkdir out
 cp flagstat* out/.
 cp GC_* out/.
 cp frag* out/.
-cp reduced*.dedup.tsv out/.
-
+cp reduced2*.dedup.tsv out/.
 
 
 
 
 # export mydir=/shared/homes/12705859/HACKLEX_LIBS/goal_dilution/ecoli
 # export ref_genome=/shared/homes/12705859/HACKLEX_LIBS/goal_dilution/ecoli/source_data/assembly.fasta
-# qsub -V library_processing.sh 
+# qsub -V library_processing2.sh
 # export mydir=/shared/homes/12705859/HACKLEX_LIBS/goal_dilution/paeruginosa
 # export ref_genome=/shared/homes/12705859/HACKLEX_LIBS/goal_dilution/paeruginosa/source_data/all_p_aeruginosa.contigs.fasta
-# qsub -V library_processing.sh 
+# qsub -V library_processing2.sh
 # export mydir=/shared/homes/12705859/HACKLEX_LIBS/goal_dilution/saureus
 # export ref_genome=/shared/homes/12705859/HACKLEX_LIBS/goal_dilution/saureus/source_data/Saureus.fa
-# qsub -V library_processing.sh 
+# qsub -V library_processing2.sh
 # export mydir=/shared/homes/12705859/HACKLEX_LIBS/goal_polymerase/ecoli
 # export ref_genome=/shared/homes/12705859/HACKLEX_LIBS/goal_polymerase/ecoli/source_data/assembly.fasta
-# qsub -V library_processing.sh 
+# qsub -V library_processing2.sh
 # export mydir=/shared/homes/12705859/HACKLEX_LIBS/goal_KAPA/ecoli
 # export ref_genome=/shared/homes/12705859/HACKLEX_LIBS/goal_KAPA/ecoli/source_data/assembly.fasta
-# qsub -V library_processing.sh 
+# qsub -V library_processing2.sh
 # export mydir=/shared/homes/12705859/HACKLEX_LIBS/goal_hackflex/ecoli
 # export ref_genome=/shared/homes/12705859/HACKLEX_LIBS/goal_hackflex/ecoli/source_data/assembly.fasta
-# qsub -V library_processing.sh 
+# qsub -V library_processing2.sh
 # export mydir=/shared/homes/12705859/HACKLEX_LIBS/goal_hackflex/paeruginosa
 # export ref_genome=/shared/homes/12705859/HACKLEX_LIBS/goal_hackflex/paeruginosa/source_data/all_p_aeruginosa.contigs.fasta
-# qsub -V library_processing.sh 
+# qsub -V library_processing2.sh
 # export mydir=/shared/homes/12705859/HACKLEX_LIBS/goal_hackflex/saureus
 # export ref_genome=/shared/homes/12705859/HACKLEX_LIBS/goal_hackflex/saureus/source_data/Saureus.fa
-# qsub -V library_processing.sh 
+# qsub -V library_processing2.sh
