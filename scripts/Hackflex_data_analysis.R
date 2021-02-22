@@ -15,14 +15,14 @@ library(stringr)
 
 
 # set directories
-# mydir <- "~/Desktop/MG1655/goal_dilution/ecoli/"
-# phred_dir <- "~/Desktop/MG1655/raw_libs/"
+ mydir <- "~/Desktop/MG1655/goal_dilution/ecoli/"
+ phred_dir <- "~/Desktop/MG1655/raw_libs/"
 
 # mydir <- "~/Desktop/MG1655/goal_dilution/paeruginosa/"
 # phred_dir <- "~/Desktop/MG1655/raw_libs/"
 
-mydir <- "~/Desktop/MG1655/goal_dilution/saureus/"
-phred_dir <- "~/Desktop/MG1655/raw_libs/"
+# mydir <- "~/Desktop/MG1655/goal_dilution/saureus/"
+# phred_dir <- "~/Desktop/MG1655/raw_libs/"
 
 # mydir <- "~/Desktop/MG1655/goal_polymerase/"
 # phred_dir <- "~/Desktop/MG1655/raw_libs/"
@@ -36,8 +36,8 @@ phred_dir <- "~/Desktop/MG1655/raw_libs/"
 # mydir <- "~/Desktop/MG1655/goal_hackflex/paeruginosa/"
 # phred_dir <- "~/Desktop/MG1655/raw_libs/"
 # 
-mydir <- "~/Desktop/MG1655/goal_hackflex/saureus/"
-phred_dir <- "~/Desktop/MG1655/raw_libs/"
+# mydir <- "~/Desktop/MG1655/goal_hackflex/saureus/"
+# phred_dir <- "~/Desktop/MG1655/raw_libs/"
 
 ########################################
 ########################################
@@ -46,7 +46,7 @@ phred_dir <- "~/Desktop/MG1655/raw_libs/"
 # Coverage: 
 
 
-cov_files <- grep(list.files(mydir,pattern="^reduced_trimmed2_trimmed_interleaved2_"), 
+cov_files <- grep(list.files(mydir,pattern="^reduced"), 
                   pattern='.tsv', value=TRUE)
 
 # Coverage:
@@ -67,7 +67,8 @@ for (cov_file in cov_files) {
   
   colnames(coverage) <- c("position","coverage")
   
-  id <- str_replace_all(cov_file, "reduced_trimmed2_trimmed_interleaved2_", "")
+  id <- sub(".*interleaved2_", "", cov_file)
+  id <- sub(".dedup.tsv", "", id)
   coverage$library=paste0(as.character(id))
   
   df_to_fill <- rbind(df_to_fill,coverage)
@@ -142,14 +143,16 @@ for (frag_file in frag_files) {
   
   # read in file 
   frag_df <- read.table(file.path(mydir,frag_file), quote="\"", comment.char="")
-  
+
   # transform fragment size values to absolute values (because pos and neg stand for forward and reverse reads)
   frag_df$V1 <- abs(frag_df$V1)
   
   # add column with sequential numbers to each dataset
   new_df <- cbind( frag_df, order=seq(nrow(frag_df)) ) 
   
-  new_df$library <- as.character(basename(frag_file))
+  id <- sub(".*interleaved2_", "", frag_file)
+  id <- sub(".dedup.txt", "", id)
+  new_df$library=paste0(as.character(id))
   
   df_to_fill <- rbind(
     df_to_fill, 
@@ -157,9 +160,7 @@ for (frag_file in frag_files) {
   )
   
 }
-
-# reduce lib name
-df_to_fill$library <- str_replace_all(df_to_fill$library, "frag_sizes_reduced_trimmed2_trimmed_interleaved2_", "")
+View(df_to_fill)
 
 # plot
 pdf(paste0(mydir,'fragment_size.pdf'))
@@ -168,7 +169,7 @@ ds <- df_to_fill
 ggplot(ds, aes(V1, colour=library, fill=library)) + 
   scale_x_continuous(limits=c(0,1000)) + 
   xlab("fragment size (bp)")+
-  geom_density(alpha=0.55) +
+  geom_density(alpha=0.01) +
   theme_bw() + 
   theme(panel.border = element_blank(), 
         panel.grid.major = element_blank(), 
@@ -179,7 +180,6 @@ ggplot(ds, aes(V1, colour=library, fill=library)) +
         axis.text=element_text(size=12),
         axis.title=element_text(size=14))
 dev.off()
-
 
 ########################################
 ########################################
@@ -198,7 +198,7 @@ for (row in 1:nrow(myDF)) {
   gc <- myDF[row,1]
   flag <- myDF[row,2]
   
-  id <- str_replace_all(gc, "GC_qc_reduced_trimmed2_trimmed_interleaved2_", "")
+  id <- str_replace_all(gc, "GC_qc_reduced2_trimmed2_trimmed_interleaved2_", "")
   
   # read in files
   gc_df <- read.table(file.path(mydir,gc), quote="\"", comment.char="", header = TRUE)
@@ -232,6 +232,10 @@ for (row in 1:nrow(myDF)) {
 }
 
 big_data = do.call(rbind, datalist)
+
+big_data$lib <- sub(".*interleaved2_", "", big_data$lib)
+big_data$lib <- sub(".tsv", "", big_data$lib)
+
 
 
 smooth_GC <- big_data %>% 
@@ -279,8 +283,9 @@ libs_here <- substr(tools::file_path_sans_ext(unique(big_data$lib)), start = 1, 
 
 PHRED_df_sub <- PHRED_df %>% 
   dplyr::filter(str_detect(library, str_c(libs_here, collapse="|")))
-  
-  
+PHRED_df_sub$library <- sub(".fastq.gz", "", PHRED_df_sub$library)
+
+
 # #plot
 pdf(paste0(mydir,'PHRED_scores_raw_reads.pdf'))
 ggplot(PHRED_df_sub,
@@ -297,9 +302,58 @@ ggplot(PHRED_df_sub,
         legend.title = element_blank(),
         axis.text=element_text(size=14),
         axis.title=element_text(size=18)) +
-scale_x_continuous(breaks = c(0,50,100,150,200,250,300), lim = c(0, 300)) +
-scale_y_continuous(breaks = c(30,32,34,36,38), lim = c(29, 38))
+  scale_x_continuous(breaks = c(0,50,100,150,200,250,300), lim = c(0, 300)) +
+  scale_y_continuous(breaks = c(30,32,34,36,38), lim = c(29, 38))
 dev.off()
 
 
+########################################
+########################################
+
+
+# RL content: 
+
+rl_files = list.files(mydir,pattern="RL")
+
+# construct an empty dataframe to build on 
+rl_to_fill <- data.frame(
+  Sample = character(),
+  Readlength = numeric(),
+  Count = numeric(),
+  Fraction = numeric(),
+  stringsAsFactors = FALSE
+)
+
+for (rl_file in rl_files) {
+  
+  # read in file
+  rl_df <- read.table(file.path(mydir,rl_file), quote="\"", comment.char="", header = TRUE)
+
+  rl_df <- rl_df %>% 
+    dplyr::select(Sample,Readlength,Count, Fraction)
+  
+  rl_df$Sample <- str_replace_all(rl_df$Sample, "reduced_trimmed2_trimmed_interleaved2_", "")
+  
+  rl_to_fill <- rbind(rl_to_fill, rl_df)
+}
+
+View(rl_to_fill)
+# plot 
+pdf(paste0(mydir,'read_length.pdf'))
+rl_to_fill %>%
+  uncount(Count) %>%
+  ggplot(., aes(Readlength, colour=Sample, fill=Sample)) + 
+  scale_x_continuous(limits=c(0,1000)) + 
+  xlab("read length (bp)")+
+  geom_density(alpha=0.01) +
+  theme_bw() + 
+  theme(panel.border = element_blank(), 
+        panel.grid.major = element_blank(), 
+        panel.grid.minor = element_blank(), 
+        axis.line = element_line(colour = "black"),
+        legend.title = element_blank(),
+        legend.position = "top",
+        axis.text=element_text(size=12),
+        axis.title=element_text(size=14))
+dev.off()
 

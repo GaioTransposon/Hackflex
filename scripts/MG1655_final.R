@@ -533,9 +533,9 @@ abline(lm(L1_transpose$diff ~ L1_transpose$GCcontent, weights=L1_transpose$reads
 abline(lm(L2_transpose$diff ~ L2_transpose$GCcontent, weights=L2_transpose$reads_L2), col="red")
 abline(lm(H_transpose$diff ~ H_transpose$GCcontent, weights=H_transpose$reads_H), col="green")
 legend("topright", 
-       legend = c(expression(paste("Standard Flex   ", rho, " = ", -0.9502)),
-                  expression(paste("1:50 Flex           ", rho, " = ", -0.9587)),
-                  expression(paste("Hackflex            ", rho, " = ", -0.7696))), 
+       legend = c(expression(paste("Standard Flex   ", rho, " = ", -0.2547911)),
+                  expression(paste("1:50 Flex           ", rho, " = ", -0.3953004)),
+                  expression(paste("Hackflex            ", rho, " = ", -0.1382852))), 
        pch = c(0,2,1), 
        col = c("blue", "red", "green"), 
        bty = "n", 
@@ -588,8 +588,8 @@ plot(M1_transpose$GCcontent[M1_transpose$diff!=1], M1_transpose$diff[M1_transpos
 abline(lm(M1_transpose$diff ~ M1_transpose$GCcontent, weights=M1_transpose$reads_M1), col="blue")
 abline(lm(M2_transpose$diff ~ M2_transpose$GCcontent, weights=M2_transpose$reads_M2), col="red")
 legend("topright", 
-       legend = c(expression(paste("Standard Flex   ", rho, " = ", -0.9234)),
-                  expression(paste("1:50 Flex           ", rho, " = ", -0.9398))), 
+       legend = c(expression(paste("Standard Flex   ", rho, " = ", -0.2114411)),
+                  expression(paste("1:50 Flex           ", rho, " = ", -0.2853113))), 
        pch = c(0,2,1), 
        col = c("blue", "red", "green"), 
        bty = "n", 
@@ -640,8 +640,8 @@ plot(N1_transpose$GCcontent[N1_transpose$diff!=1], N1_transpose$diff[N1_transpos
   abline(lm(N1_transpose$diff ~ N1_transpose$GCcontent, weights=N1_transpose$reads_N1), col="blue")
 abline(lm(N2_transpose$diff ~ N2_transpose$GCcontent, weights=N2_transpose$reads_N2), col="red")
 legend("topright", 
-       legend = c(expression(paste("Standard Flex   ", rho, " = ", -0.9916)),
-                  expression(paste("1:50 Flex           ", rho, " = ", -0.9903))), 
+       legend = c(expression(paste("Standard Flex   ", rho, " = ", -0.411889)),
+                  expression(paste("1:50 Flex           ", rho, " = ", -0.3052484))), 
        pch = c(0,2,1), 
        col = c("blue", "red", "green"), 
        bty = "n", 

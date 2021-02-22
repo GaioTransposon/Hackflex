@@ -103,7 +103,6 @@ reformat.sh int=t -samplebasestarget=$smallest_lib_bases in=$trimmed2_library ou
 done
 
 
-
 ################################ PART 2 ################################
 
 
@@ -165,7 +164,7 @@ filename_lib=$(basename $library)
 lib="${filename_lib%.*}"
 echo "##############" >> dups_stats.txt
 echo $lib >> dups_stats.txt
-samtools markdup -r -s $library $lib.dedup.bam &>> dups_stats.txt
+samtools markdup -s $library $lib.dedup.bam &>> dups_stats.txt # -r won't remove but reports on dups
 done
 
 
@@ -235,6 +234,7 @@ done
 mkdir out
 cp flagstat* out/.
 cp GC_* out/.
+cp RL_* out/.
 cp frag* out/.
 cp reduced*.dedup.tsv out/.
 
@@ -265,4 +265,13 @@ cp reduced*.dedup.tsv out/.
 # qsub -V library_processing.sh 
 # export mydir=/shared/homes/12705859/HACKLEX_LIBS/goal_hackflex/saureus
 # export ref_genome=/shared/homes/12705859/HACKLEX_LIBS/goal_hackflex/saureus/source_data/Saureus.fa
+# qsub -V library_processing.sh 
+# export mydir=/shared/homes/12705859/HACKLEX_LIBS/goal_size_selection/ecoli
+# export ref_genome=/shared/homes/12705859/HACKLEX_LIBS/goal_size_selection/ecoli/source_data/assembly.fasta
+# qsub -V library_processing.sh 
+# export mydir=/shared/homes/12705859/HACKLEX_LIBS/goal_size_selection/paeruginosa
+# export ref_genome=/shared/homes/12705859/HACKLEX_LIBS/goal_size_selection/paeruginosa/source_data/all_p_aeruginosa.contigs.fasta
+# qsub -V library_processing.sh 
+# export mydir=/shared/homes/12705859/HACKLEX_LIBS/goal_size_selection/saureus
+# export ref_genome=/shared/homes/12705859/HACKLEX_LIBS/goal_size_selection/saureus/source_data/Saureus.fa
 # qsub -V library_processing.sh 
