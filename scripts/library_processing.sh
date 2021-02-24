@@ -275,3 +275,15 @@ cp reduced*.dedup.tsv out/.
 # export mydir=/shared/homes/12705859/HACKLEX_LIBS/goal_size_selection/saureus
 # export ref_genome=/shared/homes/12705859/HACKLEX_LIBS/goal_size_selection/saureus/source_data/Saureus.fa
 # qsub -V library_processing.sh 
+
+export mydir=/shared/homes/12705859/HACKLEX_LIBS/goal_ecoli
+export ref_genome=/shared/homes/12705859/HACKLEX_LIBS/goal_ecoli/source_data/assembly.fasta
+qsub -V library_processing.sh 
+export mydir=/shared/homes/12705859/HACKLEX_LIBS/goal_paeruginosa
+export ref_genome=/shared/homes/12705859/HACKLEX_LIBS/goal_paeruginosa/source_data/all_p_aeruginosa.contigs.fasta
+qsub -V library_processing.sh 
+export mydir=/shared/homes/12705859/HACKLEX_LIBS/goal_saureus
+export ref_genome=/shared/homes/12705859/HACKLEX_LIBS/goal_saureus/source_data/Saureus.fa
+qsub -V library_processing.sh 
+
+

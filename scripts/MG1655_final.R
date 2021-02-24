@@ -455,6 +455,7 @@ dev.off()
 
 # Number of reads from .bam : cleaned reads 
 
+
 library(readr)
 RL_nanop_vs_nextera1 <- read_delim("RL_nanop_vs_nextera2.tsv", "\t", escape_double = FALSE, trim_ws = TRUE)
 RL_nanop_vs_nextera2 <- read_delim("RL_nanop_vs_nextera1.tsv", "\t", escape_double = FALSE, trim_ws = TRUE)
