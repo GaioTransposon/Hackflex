@@ -44,11 +44,15 @@ library(corrr)
 # mydir <- "~/Desktop/MG1655/goal_ecoli/"
 # phred_dir <- "~/Desktop/MG1655/raw_libs/"
 # 
-mydir <- "~/Desktop/MG1655/goal_saureus/"
+# mydir <- "~/Desktop/MG1655/goal_saureus/"
+# phred_dir <- "~/Desktop/MG1655/raw_libs/"
+# 
+mydir <- "~/Desktop/MG1655/goal_paeruginosa/"
 phred_dir <- "~/Desktop/MG1655/raw_libs/"
 
 # insert here libs that you want to plot
-my_subset <- c("Sa.SF_1","Sa.SF_1:50","Sa.HF","Sa.HF_55A","Sa.HF_06x") # all from S. aureus
+my_subset <- c("Ec.SF_1","Ec.SF_1:50","Ec.HF","Ec.HF_55A","Ec.HF_06x","Ec.SF_1_rep","Ec.SF_1_PS","Ec.SF_1:50_rep") # all from E. coli
+#my_subset <- c("Sa.SF_1","Sa.SF_1:50","Sa.HF","Sa.HF_55A","Sa.HF_06x") # all from S. aureus
 #my_subset <- c("Pa.SF_1","Pa.SF_1:50","Pa.HF","Pa.HF_55A","Pa.HF_55A72E","Pa.HF_06x") # all from P. aeruginosa
 
 ########################################
@@ -383,6 +387,7 @@ PHRED_df <- read_csv(file.path(phred_dir,"PHRED_scores.csv"))
 
 # subset
 PHRED_df <- PHRED_df %>% 
+  dplyr::mutate(library=as.factor(recode_fun(library))) %>%
   dplyr::filter(library %in% my_subset) %>%
   drop.levels()
 
@@ -506,7 +511,6 @@ df_to_fill_coverage_wide %>%
   corrr::rearrange(method = "MDS", absolute = FALSE) %>%
   corrr::shave() %>% 
   corrr::rplot(shape = 19, colors = c("red", "green")) 
-
 # plot fragment size 
 ggplot(df_to_fill_fragm_size, aes(V1, colour=library, fill=library)) + 
   scale_x_continuous(limits=c(0,1000)) + 
