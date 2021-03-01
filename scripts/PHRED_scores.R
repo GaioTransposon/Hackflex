@@ -20,8 +20,6 @@ reads = grep(list.files(mydir,pattern="(R1.fastq.gz|R2.fastq.gz)"), # pattern to
              pattern='interleaved', # pattern to ignore
              invert=TRUE, value=TRUE)
 
-reads <- reads[39:62]
-
 # construct an empty dataframe to build on 
 df_to_fill <- data.frame(
   read_position = numeric(),

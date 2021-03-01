@@ -19,111 +19,9 @@ library(data.table)
 
 # set directories and select samples: 
 
-# mydir <- "~/Desktop/MG1655/goal_ecoli/"
-# phred_dir <- "~/Desktop/MG1655/raw_libs/"
-# my_subset <- c("Ec.SF_1.B1",
-#                "Ec.SF_1:50.B1",
-#                "Ec.HF.B3",
-#                "Ec.HF_55A.B2",
-#                "Ec.HF_06x.B3",
-#                "Ec.SF_1.B2",
-#                "Ec.SF_1_PS.B2",
-#                "Ec.SF_1:50.B2") # all from E. coli
+mydir <- "~/Desktop/MG1655/goal_barcode/"
+phred_dir <- "~/Desktop/MG1655/raw_libs/"
 
-# mydir <- "~/Desktop/MG1655/goal_paeruginosa/"
-# phred_dir <- "~/Desktop/MG1655/raw_libs/"
-# my_subset <- c("Pa.SF_1.B1",
-#                "Pa.SF_1:50.B1",
-#                "Pa.HF.B2",
-#                "Pa.HF_55A.B2",
-#                "Pa.HF_55A72E.B2",
-#                "Pa.HF_06x.B3") # all from P. aeruginosa
-
-# mydir <- "~/Desktop/MG1655/goal_saureus/"
-# phred_dir <- "~/Desktop/MG1655/raw_libs/"
-# my_subset <- c("Sa.SF_1.B1",
-#                "Sa.SF_1:50.B1",
-#                "Sa.HF.B2",
-#                "Sa.HF_55A.B2",
-#                "Sa.HF_06x.B3") # all from S. aureus
-
-########################################
-
-# mydir <- "~/Desktop/MG1655/goal_size_selection/ecoli/"
-# phred_dir <- "~/Desktop/MG1655/raw_libs/"
-# my_subset <- c("Ec.HF.B3",
-#                "Ec.HF_06x.B3")
-
-# mydir <- "~/Desktop/MG1655/goal_size_selection/paeruginosa/"
-# phred_dir <- "~/Desktop/MG1655/raw_libs/"
-# my_subset <- c("Pa.HF.B2",
-#                "Pa.HF_06x.B3")
-
-# mydir <- "~/Desktop/MG1655/goal_size_selection/saureus/"
-# phred_dir <- "~/Desktop/MG1655/raw_libs/"
-# my_subset <- c("Sa.HF.B2",
-#                "Sa.HF_06x.B3")
-
-########################################
-########################################
-
-
-recode_fun <- function(chars) {
-  
-  x <- recode(chars, J1 = "Ec.SF_1.B1")
-  x <- recode(x, J2 = "Ec.SF_1:50.B1")
-  x <- recode(x, K13 = "Ec.HF.B3")
-  x <- recode(x, K9 = "Ec.HF_55A.B2")
-  x <- recode(x, K14 = "Ec.HF_06x.B3")
-  x <- recode(x, K1 = "Ec.SF_1.B2")
-  x <- recode(x, K2 = "Ec.SF_1_PS.B2")
-  x <- recode(x, K3 = "Ec.SF_1:50.B2")
-  
-  x <- recode(x, J5 = "Pa.SF_1.B1")
-  x <- recode(x, J6 = "Pa.SF_1:50.B1")
-  x <- recode(x, K8 = "Pa.HF.B2")
-  x <- recode(x, K11 = "Pa.HF_55A.B2")
-  x <- recode(x, K5 = "Pa.HF_55A72E.B2")
-  x <- recode(x, K15 = "Pa.HF_06x.B3")
-  
-  x <- recode(x, J9 = "Sa.SF_1.B1")
-  x <- recode(x, J10 = "Sa.SF_1:50.B1")
-  x <- recode(x, K7 = "Sa.HF.B2")
-  x <- recode(x, K10 = "Sa.HF_55A.B2")
-  x <- recode(x, K16 = "Sa.HF_06x.B3")
-  
-  return(x)
-  
-}
-
-# reorder lib factor - function 
-reorder_lib_fun <- function(df) {
-
-  df$library  = factor(df$library, levels=c("Ec.SF_1.B1",
-                                         "Ec.SF_1:50.B1",
-                                         "Ec.HF.B3",
-                                         "Ec.HF_55A.B2",
-                                         "Ec.HF_06x.B3",
-                                         "Ec.SF_1.B2",
-                                         "Ec.SF_1_PS.B2",
-                                         "Ec.SF_1:50.B2",
-                                         "Pa.SF_1.B1",
-                                         "Pa.SF_1:50.B1",
-                                         "Pa.HF.B2",
-                                         "Pa.HF_55A.B2",
-                                         "Pa.HF_55A72E.B2",
-                                         "Pa.HF_06x.B3",
-                                         "Sa.SF_1.B1",
-                                         "Sa.SF_1:50.B1",
-                                         "Sa.HF.B2",
-                                         "Sa.HF_55A.B2",
-                                         "Sa.HF_06x.B3"))
-  # drop unused levels
-  df <- df %>% 
-    drop.levels()
-  
-  return(df)
-}
 
 ########################################
 ########################################
@@ -150,25 +48,18 @@ for (cov_file in cov_files) {
   print(cov_file)
   
   coverage <-read.table(file.path(mydir,cov_file))
-  head(coverage)
+  
   colnames(coverage) <- c("position","coverage")
   
   id <- sub(".*interleaved2_", "", cov_file)
   id <- sub(".dedup.tsv", "", id)
   id <- gsub("_R1","",id)
-  id <- recode_fun(id)
   coverage$library=paste0(as.character(id))
   
   df_to_fill_coverage <- rbind(df_to_fill_coverage,coverage)
   
 }
 
-
-# subset
-df_to_fill_coverage <- df_to_fill_coverage %>% dplyr::filter(library %in% my_subset)
-
-# re-order libs
-df_to_fill_coverage <- reorder_lib_fun(df_to_fill_coverage)
 
 # function to get numbers per library: 
 get_me_stats <- function(DF) {
@@ -221,7 +112,7 @@ z <- df_to_fill_coverage %>%
   group_by(library) %>% 
   dplyr::mutate(mean=mean(coverage),
                 sd=sd(coverage))
-  
+
 dat_text <- data.frame(
   label = paste0("mean=", #\t doesn't work
                  as.character(round(unique(z$mean),2)),
@@ -276,7 +167,7 @@ for (frag_file in frag_files) {
   
   # read in file 
   frag_df <- read.table(file.path(mydir,frag_file), quote="\"", comment.char="")
-
+  
   # transform fragment size values to absolute values (because pos and neg stand for forward and reverse reads)
   frag_df$V1 <- abs(frag_df$V1)
   
@@ -286,7 +177,6 @@ for (frag_file in frag_files) {
   id <- sub(".*interleaved2_", "", frag_file)
   id <- sub(".dedup.txt", "", id)
   id <- gsub("_R1","",id)
-  id <- recode_fun(id)
   new_df$library=paste0(as.character(id))
   
   df_to_fill_fragm_size <- rbind(
@@ -295,12 +185,6 @@ for (frag_file in frag_files) {
   )
   
 }
-
-# subset
-df_to_fill_fragm_size <- df_to_fill_fragm_size %>% dplyr::filter(library %in% my_subset)
-
-# re-order libs
-df_to_fill_fragm_size <- reorder_lib_fun(df_to_fill_fragm_size)
 
 ########################################
 ########################################
@@ -321,7 +205,6 @@ for (row in 1:nrow(myDF)) {
   
   id <- gsub("GC_qc_reduced_trimmed2_trimmed_interleaved2_", "",gc)
   id <- gsub("_R1.tsv","",id)
-  id <- recode_fun(id)
   
   # read in files
   gc_df <- read.table(file.path(mydir,gc), quote="\"", comment.char="", header = TRUE)
@@ -357,12 +240,6 @@ for (row in 1:nrow(myDF)) {
 
 big_data = do.call(rbind, datalist)
 
-# subset
-big_data <- big_data %>% dplyr::filter(library %in% my_subset)
-
-# re-order libs
-big_data <- reorder_lib_fun(big_data)
-
 smooth_GC <- big_data %>% 
   dplyr::filter(diff!=1) %>% 
   ggplot(.,aes(x=GCcontent,y=diff,color=library))+
@@ -387,28 +264,19 @@ straight_GC <- big_data %>%
   stat_cor(p.accuracy = 0.001, r.accuracy = 0.01)
 
 
-########################################
-########################################
-
-# PHRED scores plotting
-
-# open file contaning all the PHRED scores:
-PHRED_df <- read_csv(file.path(phred_dir,"PHRED_scores.csv"))
-
-# subset
-PHRED_df <- PHRED_df %>% 
-  dplyr::mutate(library=as.factor(recode_fun(library))) %>%
-  dplyr::filter(library %in% my_subset) %>%
-  drop.levels()
-
-# re-order libs
-PHRED_df <- reorder_lib_fun(PHRED_df)
-
-PHRED_df$lib <- as.character(paste0(PHRED_df$library,"_",PHRED_df$read))
-
-
-########################################
-########################################
+# ########################################
+# ########################################
+# 
+# # PHRED scores plotting
+# 
+# # open file contaning all the PHRED scores:
+# PHRED_df <- read_csv(file.path(phred_dir,"PHRED_scores.csv"))
+# 
+# PHRED_df$lib <- as.character(paste0(PHRED_df$library,"_",PHRED_df$read))
+# 
+# 
+# ########################################
+# ########################################
 
 
 # RL content: 
@@ -428,23 +296,16 @@ for (rl_file in rl_files) {
   
   # read in file
   rl_df <- read.table(file.path(mydir,rl_file), quote="\"", comment.char="", header = TRUE)
-
+  
   rl_df <- rl_df %>% 
     dplyr::select(Sample,Readlength,Count, Fraction)
   
   rl_df$library <- str_replace_all(rl_df$Sample, "reduced_trimmed2_trimmed_interleaved2_", "")
   rl_df$library <- gsub("_R1.dedup","",rl_df$library)
-  rl_df$library <- recode_fun(rl_df$library)
   rl_df$Sample <- NULL
   
   rl_to_fill <- rbind(rl_to_fill, rl_df)
 }
-
-# subset
-rl_to_fill <- rl_to_fill %>% dplyr::filter(library %in% my_subset)
-
-# re-order libs
-rl_to_fill <- reorder_lib_fun(rl_to_fill)
 
 # expand rows based on count (to create a density plot, like the fragm size one)
 rl_to_fill_expand <- setDT(expandRows(rl_to_fill, "Count"))
@@ -469,12 +330,11 @@ for (row in 1:nrow(myDF)) {
   # read in file
   me_df <- read.table(file.path(mydir,me_file), quote="\"", comment.char="", header = TRUE)
   
-  
   me_df$Sample <- gsub("reduced_trimmed2_trimmed_interleaved2_", "",me_df$Sample)
   me_df$Sample <- gsub("_R1.dedup", "",me_df$Sample)
   
   me_df <- me_df %>%
-    dplyr::mutate(library=as.factor(recode_fun(Sample))) %>%
+    dplyr::mutate(library=Sample) %>%
     select(library, everything()) # bring at first position
   
   MElist[[row]] <- me_df # add it to your list
@@ -483,12 +343,6 @@ for (row in 1:nrow(myDF)) {
 
 
 ME_data = do.call(rbind, MElist)
-
-# subset
-ME_data <- ME_data %>% dplyr::filter(library %in% my_subset)
-
-# re-order libs
-ME_data <- reorder_lib_fun(ME_data)
 
 # store names
 n <- ME_data$Sample
@@ -499,6 +353,101 @@ ME_data$Sample <- factor(row.names(ME_data))
 rownames(ME_data) <- NULL
 
 fwrite(x=ME_data, file=paste0(mydir,"Alfred_ME_data.csv"))
+
+
+########################################
+########################################
+
+
+# barcode distribution: 
+
+# number of mapped reads 
+
+barcode_count <- read.table(file.path(mydir,"reads_after_cleaning.tsv"), quote="\"", comment.char="", header = FALSE)
+head(barcode_count)
+
+# coeff of variation without the two outliers (percentage)
+# subset the dataframe to exclude outliers with read count lower than 50
+barcode_count_no_outliers <- subset(barcode_count, V2>50)
+
+a = paste0("Barcode count summary:")
+b = paste0("Min: ", summary(barcode_count$V2)[1])
+c = paste0("1st Qu.: ", summary(barcode_count$V2)[2])
+d = paste0("Median: ", summary(barcode_count$V2)[3])
+e = paste0("Mean: ", summary(barcode_count$V2)[4])
+f = paste0("3rd Qu.: ", summary(barcode_count$V2)[5])
+g = paste0("Max: ", summary(barcode_count$V2)[6])
+h = paste0("Standard deviation: ", sd(barcode_count$V2))
+i = paste0("Sum: ", sum(barcode_count$V2))
+l = paste0("Coeff. of variation (incl. outliers): ", sd(barcode_count$V2)/mean(barcode_count$V2))
+m = paste0("Coeff. of variation (excl. outliers): ", sd(barcode_count_no_outliers$V2)/mean(barcode_count_no_outliers$V2))
+
+pdf(paste0(mydir,'barcode_summary.pdf'),width=11,height=11)
+plot(NA, xlim=c(0,11), ylim=c(0,11), bty='n',
+     xaxt='n', yaxt='n', xlab='', ylab='')
+text(1,11,a, pos=4)
+text(1,10,b, pos=4)
+text(1,9,c, pos=4)
+text(1,8,d, pos=4)
+text(1,7,e, pos=4)
+text(1,6,f, pos=4)
+text(1,5,g, pos=4)
+text(1,4,h, pos=4)
+text(1,3,i, pos=4)
+text(1,2,l, pos=4)
+text(1,1,m, pos=4)
+dev.off()
+
+#barcode distribution (with boxplot)
+pdf(paste0(mydir,"barcode_distribution.pdf"))
+# Layout to split the screen
+layout(mat = matrix(c(1,2),2,1, byrow=TRUE),  height = c(1,8))
+# Draw the boxplot and the histogram 
+par(mar=c(0, 6, 1.1, 2))
+boxplot(barcode_count$V2,
+        main = NULL,
+        xlab = NULL,
+        ylab = NULL,
+        axes = FALSE,
+        col = "grey",
+        border = "black",
+        horizontal = TRUE,
+        notch = TRUE
+)
+#par(mar=c(4, 3.1, 1.1, 2.1))
+#bootm left top right
+par(mar=c(5,6,4,2)+0.1)
+#x and y labels font size with
+opar=par(ps=14)
+hist(barcode_count$V2, 
+     col=rgb(0.2,0.8,0.5,0.5), 
+     breaks=20, 
+     main = NULL, xlab = "barcode count", ylab = "Frequency")
+opar
+dev.off()
+
+##############
+
+# Plot number of reads assigned to barcode vs 96 barcode (rank sorted)
+
+#sort number of reads (ascending)
+barcode_count_2 <- barcode_count$V2
+barcode_count_3 <- data.frame(sort(barcode_count_2))
+
+#add column for wells
+barcode_count_3$X2 <- 1:nrow(barcode_count_3) 
+
+pdf("read_count_per_barcode.pdf")
+barplot(barcode_count_3$sort.barcode_count_2~barcode_count_3$X2, xlab="", ylab="", 
+        xaxt='n', main="96-plex barcode counts") 
+title(xlab="96 barcodes (rank-sorted)", line=1.0, cex.lab=1.5)
+title(ylab="number of reads assigned to barcode", line=2.5, cex.lab=1.5)
+grid(nx = NA, ny = 10, col = "gray", lty = "dotted",
+     lwd = par("lwd"), equilogs = TRUE)
+dev.off()
+
+
+########################################
 
 
 ################################################################################
@@ -538,26 +487,26 @@ ggplot(df_to_fill_fragm_size, aes(V1, colour=library, fill=library)) +
 # plot GC content bias
 ggarrange(smooth_GC, straight_GC, 
           nrow = 2)
-# plot PHRED scores
-PHRED_df %>% 
-  ggplot(.,
-         aes(x=read_position, y=PHRED_means, colour=library, shape = read,
-             group=interaction(library, read))) + 
-  geom_point(alpha=0.8) + 
-  geom_line()+
-  xlab("read position (bp)") +
-  ylab("average PHRED score") +
-  theme_bw() +
-  scale_x_continuous(breaks = c(0,50,100,150,200,250,300), lim = c(0, 300)) +
-  scale_y_continuous(breaks = c(30,32,34,36,38), lim = c(29, 38))+
-  theme(panel.border = element_blank(),
-        panel.grid.major = element_blank(),
-        panel.grid.minor = element_blank(),
-        axis.line = element_line(colour = "black"),
-        legend.position="top",
-        legend.title = element_blank(),
-        axis.text=element_text(size=14),
-        axis.title=element_text(size=18)) 
+# # plot PHRED scores
+# PHRED_df %>% 
+#   ggplot(.,
+#          aes(x=read_position, y=PHRED_means, colour=library, shape = read,
+#              group=interaction(library, read))) + 
+#   geom_point(alpha=0.8) + 
+#   geom_line()+
+#   xlab("read position (bp)") +
+#   ylab("average PHRED score") +
+#   theme_bw() +
+#   scale_x_continuous(breaks = c(0,50,100,150,200,250,300), lim = c(0, 300)) +
+#   scale_y_continuous(breaks = c(30,32,34,36,38), lim = c(29, 38))+
+#   theme(panel.border = element_blank(),
+#         panel.grid.major = element_blank(),
+#         panel.grid.minor = element_blank(),
+#         axis.line = element_line(colour = "black"),
+#         legend.position="top",
+#         legend.title = element_blank(),
+#         axis.text=element_text(size=14),
+#         axis.title=element_text(size=18)) 
 # plot read lengths
 ggplot(rl_to_fill_expand, aes(Readlength, colour=library, fill=library)) + 
   scale_x_continuous(limits=c(100,400)) + 

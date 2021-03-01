@@ -11,11 +11,13 @@
 # PART1: cleaning
 # PART2: mapping
 # PART3: alfred 
-# PART4: gather useful output
+# PART4: barcode extraction
+# PART5: gather useful output
 
 ##########################
 
 #!/bin/bash
+#PBS -q i3q
 #PBS -l ncpus=10
 #PBS -l walltime=10:00:00
 #PBS -l mem=20g
@@ -229,6 +231,26 @@ done
 
 ################################ PART 4 ################################
 
+# extract headers from fastq files
+for f in source_data/*.fastq
+do filename=$(basename $f)
+N="${filename%.*}"
+cat $f | grep "@M00" > fastq_files_headers_$N.tsv
+done
+
+# add filename as column to each one
+for f in fastq_files_headers_*
+do filename=$(basename $f)
+N="${filename%.*}"
+awk '{print FILENAME (NF?" ":"") $0}' $f > fastq2_files_headers_with_file_name_$N.tsv
+done
+
+# concatenate all
+cat fastq2_files_headers_with_file_name* > all_fastq_headers.tsv 
+
+
+################################ PART 5 ################################
+
 
 # save all the useful output into a new directory
 mkdir out
@@ -238,54 +260,45 @@ cp RL_* out/.
 cp frag* out/.
 cp ME_* out/.
 cp reduced*.dedup.tsv out/.
+cp reads_after_cleaning.tsv out/. # this is useful to analyse barcode distribution
+cp all_fastq_headers.tsv out/. # barcodes 
 
 
+########################################################################
 
 
+###
 
-# export mydir=/shared/homes/12705859/HACKLEX_LIBS/goal_dilution/ecoli
-# export ref_genome=/shared/homes/12705859/HACKLEX_LIBS/goal_dilution/ecoli/source_data/assembly.fasta
-# qsub -V library_processing.sh 
-# export mydir=/shared/homes/12705859/HACKLEX_LIBS/goal_dilution/paeruginosa
-# export ref_genome=/shared/homes/12705859/HACKLEX_LIBS/goal_dilution/paeruginosa/source_data/all_p_aeruginosa.contigs.fasta
-# qsub -V library_processing.sh 
-# export mydir=/shared/homes/12705859/HACKLEX_LIBS/goal_dilution/saureus
-# export ref_genome=/shared/homes/12705859/HACKLEX_LIBS/goal_dilution/saureus/source_data/Saureus.fa
-# qsub -V library_processing.sh 
-# export mydir=/shared/homes/12705859/HACKLEX_LIBS/goal_polymerase/ecoli
-# export ref_genome=/shared/homes/12705859/HACKLEX_LIBS/goal_polymerase/ecoli/source_data/assembly.fasta
-# qsub -V library_processing.sh 
-# export mydir=/shared/homes/12705859/HACKLEX_LIBS/goal_KAPA/ecoli
-# export ref_genome=/shared/homes/12705859/HACKLEX_LIBS/goal_KAPA/ecoli/source_data/assembly.fasta
-# qsub -V library_processing.sh 
-# export mydir=/shared/homes/12705859/HACKLEX_LIBS/goal_hackflex/ecoli
-# export ref_genome=/shared/homes/12705859/HACKLEX_LIBS/goal_hackflex/ecoli/source_data/assembly.fasta
-# qsub -V library_processing.sh 
-# export mydir=/shared/homes/12705859/HACKLEX_LIBS/goal_hackflex/paeruginosa
-# export ref_genome=/shared/homes/12705859/HACKLEX_LIBS/goal_hackflex/paeruginosa/source_data/all_p_aeruginosa.contigs.fasta
-# qsub -V library_processing.sh 
-# export mydir=/shared/homes/12705859/HACKLEX_LIBS/goal_hackflex/saureus
-# export ref_genome=/shared/homes/12705859/HACKLEX_LIBS/goal_hackflex/saureus/source_data/Saureus.fa
-# qsub -V library_processing.sh 
-# export mydir=/shared/homes/12705859/HACKLEX_LIBS/goal_size_selection/ecoli
-# export ref_genome=/shared/homes/12705859/HACKLEX_LIBS/goal_size_selection/ecoli/source_data/assembly.fasta
-# qsub -V library_processing.sh 
-# export mydir=/shared/homes/12705859/HACKLEX_LIBS/goal_size_selection/paeruginosa
-# export ref_genome=/shared/homes/12705859/HACKLEX_LIBS/goal_size_selection/paeruginosa/source_data/all_p_aeruginosa.contigs.fasta
-# qsub -V library_processing.sh 
-# export mydir=/shared/homes/12705859/HACKLEX_LIBS/goal_size_selection/saureus
-# export ref_genome=/shared/homes/12705859/HACKLEX_LIBS/goal_size_selection/saureus/source_data/Saureus.fa
-# qsub -V library_processing.sh 
+export mydir=/shared/homes/12705859/HACKLEX_LIBS/goal_ecoli
+export ref_genome=/shared/homes/12705859/HACKLEX_LIBS/goal_ecoli/source_data/assembly.fasta
+qsub -V library_processing.sh 
 
-# export mydir=/shared/homes/12705859/HACKLEX_LIBS/goal_ecoli
-# export ref_genome=/shared/homes/12705859/HACKLEX_LIBS/goal_ecoli/source_data/assembly.fasta
-# qsub -V library_processing.sh 
+export mydir=/shared/homes/12705859/HACKLEX_LIBS/goal_paeruginosa
+export ref_genome=/shared/homes/12705859/HACKLEX_LIBS/goal_paeruginosa/source_data/all_p_aeruginosa.contigs.fasta
+qsub -V library_processing.sh 
 
-# export mydir=/shared/homes/12705859/HACKLEX_LIBS/goal_paeruginosa
-# export ref_genome=/shared/homes/12705859/HACKLEX_LIBS/goal_paeruginosa/source_data/all_p_aeruginosa.contigs.fasta
-# qsub -V library_processing.sh 
-# export mydir=/shared/homes/12705859/HACKLEX_LIBS/goal_saureus
-# export ref_genome=/shared/homes/12705859/HACKLEX_LIBS/goal_saureus/source_data/Saureus.fa
-# qsub -V library_processing.sh 
+export mydir=/shared/homes/12705859/HACKLEX_LIBS/goal_saureus
+export ref_genome=/shared/homes/12705859/HACKLEX_LIBS/goal_saureus/source_data/Saureus.fa
+qsub -V library_processing.sh 
 
+###
 
+export mydir=/shared/homes/12705859/HACKLEX_LIBS/goal_size_selection/ecoli
+export ref_genome=/shared/homes/12705859/HACKLEX_LIBS/goal_size_selection/ecoli/source_data/assembly.fasta
+qsub -V library_processing.sh 
+
+export mydir=/shared/homes/12705859/HACKLEX_LIBS/goal_size_selection/paeruginosa
+export ref_genome=/shared/homes/12705859/HACKLEX_LIBS/goal_size_selection/paeruginosa/source_data/all_p_aeruginosa.contigs.fasta
+qsub -V library_processing.sh
+
+export mydir=/shared/homes/12705859/HACKLEX_LIBS/goal_size_selection/saureus
+export ref_genome=/shared/homes/12705859/HACKLEX_LIBS/goal_size_selection/saureus/source_data/Saureus.fa
+qsub -V library_processing.sh
+
+###
+
+export mydir=/shared/homes/12705859/HACKLEX_LIBS/goal_barcode
+export ref_genome=/shared/homes/12705859/HACKLEX_LIBS/goal_barcode/source_data/assembly.fasta
+qsub -V library_processing.sh 
+
+###
