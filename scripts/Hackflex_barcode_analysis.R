@@ -13,7 +13,7 @@ library(splitstackshape)
 library(stringr)
 library(corrr)
 library(data.table)
-
+library(stringr)
 
 
 
@@ -437,7 +437,7 @@ barcode_count_3 <- data.frame(sort(barcode_count_2))
 #add column for wells
 barcode_count_3$X2 <- 1:nrow(barcode_count_3) 
 
-pdf("read_count_per_barcode.pdf")
+pdf(paste0(mydir,"read_count_per_barcode.pdf"))
 barplot(barcode_count_3$sort.barcode_count_2~barcode_count_3$X2, xlab="", ylab="", 
         xaxt='n', main="96-plex barcode counts") 
 title(xlab="96 barcodes (rank-sorted)", line=1.0, cex.lab=1.5)
@@ -449,6 +449,118 @@ dev.off()
 
 ########################################
 
+# Barcode GC content:
+
+# Barcode GC content:
+
+all_fastq_headers <- read_table2(paste0(mydir,"all_fastq_headers.tsv"), col_names = FALSE)
+
+NROW(all_fastq_headers)
+head(all_fastq_headers)
+
+barcodes_seq <- all_fastq_headers %>%
+  dplyr::select(X1,X3) 
+
+NROW(barcodes_seq)
+head(barcodes_seq)
+
+# cleaning up (to reduce file size)
+barcodes_seq$X1 <- gsub("fastq_files_headers_HF-barcode-","HF",barcodes_seq$X1)
+
+barcodes <- as.data.frame(barcodes_seq)
+
+head(barcodes)
+NROW(barcodes)
+
+# # take the top 5 unique barcodes to each lib, get the sd among those. larger the sd the better
+# barcodes_sd <- barcodes %>%
+#   drop.levels() %>%
+#   dplyr::mutate(n=n()) %>%
+#   group_by(X1,X3) %>%
+#   dplyr::summarise(freq=sum(n)) %>%
+#   group_by(X1) %>%
+#   slice_max(order_by = freq,n=5) %>%
+#   group_by(X1) %>%
+#   dplyr::summarise(sd=sd(freq))
+# hist(barcodes_sd$sd)
+
+# take the original barcode
+barcodes <- barcodes %>%
+  drop.levels() %>%
+  dplyr::mutate(n=n()) %>%
+  group_by(X1,X3) %>%
+  dplyr::summarise(freq=sum(n)) %>%
+  group_by(X1) %>%
+  slice_max(order_by = freq,n=1)
+
+head(barcodes)
+
+barcodes <- cSplit(barcodes, "X3", sep = ":")
+barcodes <- cSplit(barcodes, "X3_4", sep = "+")
+
+barcodes <- barcodes %>%
+  dplyr::select(X1, freq, X3_1, X3_4_1, X3_4_2) %>%
+  dplyr::rename(library = X1,
+                barcode_count = freq,
+                read_direction = X3_1,
+                barcode_seq1 = X3_4_1,
+                barcode_seq2 = X3_4_2)
+
+
+barcodes <- barcodes %>%
+  dplyr::mutate(G1 = str_count(barcode_seq1, "G"),
+                C1 = str_count(barcode_seq1, "C"),
+                G2 = str_count(barcode_seq2, "G"),
+                C2 = str_count(barcode_seq2, "C"),
+                GC_content1 = ((G1 + C1) / str_length(barcode_seq1) * 100),
+                GC_content2 = ((G2 + C2) / str_length(barcode_seq2) * 100))
+
+head(barcodes)
+
+#plot
+pdf("BarcodeGC_vs_barcode.pdf")
+opar=par(ps=14)
+plot(barcodes$GC_content1, barcodes$barcode_count, xlab="GC content", ylab="barcode count")
+abline(lm(barcodes$barcode_count ~ barcodes$GC_content1, weights=barcodes$barcode_count))
+opar 
+plot(barcodes$GC_content2, barcodes$barcode_count, xlab="GC content", ylab="barcode count")
+abline(lm(barcodes$barcode_count ~ barcodes$GC_content2, weights=barcodes$barcode_count))
+opar
+dev.off()
+
+#regress.lm = lm(barcode_count$X2 ~ barcodes_GC$X4, weights=barcode_count$X2)
+#summary(regress.lm)
+NROW(barcodes)
+head(barcodes)
+extreme_GC <- barcodes %>% dplyr::filter(GC_content1<20|GC_content1>80)
+NROW(extreme_GC)/NROW(barcodes)*100
+#it means that 10.75% of all the barcodes have more than 80% or less than 20% GC content
+
+#pearson coefficient of correlation
+barcodes_GC_pearson1 <- wtd.cor(barcodes$GC_content1,barcodes$barcode_count,weight=barcodes$barcode_count)
+barcodes_GC_pearson2 <- wtd.cor(barcodes$GC_content2,barcodes$barcode_count,weight=barcodes$barcode_count)
+
+a = paste0("Barcodes GC content:")
+b = paste0("Min: ", min(barcodes_GC$X4))
+c = paste0("Mean: ", mean(barcodes_GC$X4))
+d = paste0("Median: ", median(barcodes_GC$X4))
+e = paste0("Max: ", max(barcodes_GC$X4))
+f = paste0("% of barcodes between 30-70% GC: ", nrow(new_frame)/96*100)
+g = paste0("rho: ", barcodes_GC_pearson[1])
+h = paste0("p-value: ", barcodes_GC_pearson[4])
+
+pdf('barcodes_GC_summary.pdf',width=10,height=10)
+plot(NA, xlim=c(0,10), ylim=c(0,10), bty='n',
+     xaxt='n', yaxt='n', xlab='', ylab='')
+text(1,8,a, pos=4)
+text(1,7,b, pos=4)
+text(1,6,c, pos=4)
+text(1,5,d, pos=4)
+text(1,4,e, pos=4)
+text(1,3,f, pos=4)
+text(1,2,g, pos=4)
+text(1,1,h, pos=4)
+dev.off()
 
 ################################################################################
 ################################################################################
