@@ -13,22 +13,26 @@ library(splitstackshape)
 library(stringr)
 library(corrr)
 library(data.table)
-
+library(gridExtra)
+library(grid)
+library(stringr)
+library(kableExtra)
+library(knitr)
 
 
 
 # set directories and select samples: 
 
-# mydir <- "~/Desktop/MG1655/goal_ecoli/"
-# phred_dir <- "~/Desktop/MG1655/raw_libs/"
-# my_subset <- c("Ec.SF_1.B1",
-#                "Ec.SF_1:50.B1",
-#                "Ec.HF.B3",
-#                "Ec.HF_55A.B2",
-#                "Ec.HF_06x.B3",
-#                "Ec.SF_1.B2",
-#                "Ec.SF_1_PS.B2",
-#                "Ec.SF_1:50.B2") # all from E. coli
+mydir <- "~/Desktop/MG1655/goal_ecoli/"
+phred_dir <- "~/Desktop/MG1655/raw_libs/"
+my_subset <- c("Ec.SF_1.B1",
+               "Ec.SF_1:50.B1",
+               "Ec.HF.B3",
+               "Ec.HF_55A.B2",
+               "Ec.HF_06x.B3",
+               "Ec.SF_1.B2",
+               "Ec.SF_1_PS.B2",
+               "Ec.SF_1:50.B2") # all from E. coli
 
 # mydir <- "~/Desktop/MG1655/goal_paeruginosa/"
 # phred_dir <- "~/Desktop/MG1655/raw_libs/"
@@ -63,6 +67,12 @@ library(data.table)
 # phred_dir <- "~/Desktop/MG1655/raw_libs/"
 # my_subset <- c("Sa.HF.B2",
 #                "Sa.HF_06x.B3")
+
+########################################
+
+# mydir <- "~/Desktop/MG1655/goal_barcode/"
+# phred_dir <- "~/Desktop/MG1655/raw_libs/"
+# my_subset <- paste0("HF-barcode-", seq(1,96))
 
 ########################################
 ########################################
@@ -126,7 +136,55 @@ reorder_lib_fun <- function(df) {
 }
 
 ########################################
+
+# grab first two chars, return species (used in ktable)
+species <- stringr::str_extract(my_subset[1], "^.{2}")
+if (species=="Ec") {  sp <- "Escherichia coli" }
+if (species=="Pa") {  sp <- "Pseudomonas aeruginosa" }
+if (species=="Sa") {  sp <- "Staphylococcus aureus" }
+if (species=="HF") {  sp <- "Hackflex libraries (n=96)" }
+
+
+
 ########################################
+########################################
+
+
+# Read stats: 
+
+stats <-read.table(file.path(mydir,"reads_stats.tsv"))
+
+stats$V5 <- NULL
+stats$V9 <- NULL
+
+stats$V1 <- gsub("interleaved2_","",stats$V1)
+stats$V1 <- gsub("_R1.fastq","",stats$V1)
+
+stats <- stats %>% 
+  dplyr::mutate(library=as.factor(recode_fun(V1))) %>%
+  dplyr::filter(library %in% my_subset) %>%
+  drop.levels()
+
+read_lengths <- stats %>%
+  dplyr::select(library,V2,V6,V10)
+colnames(read_lengths) <- c("library","before_cleaning","after_cleaning","after_resizing")
+read_lengths$var <- "read_length"
+
+n_reads <- stats %>%
+  dplyr::select(library,V3,V7,V11)
+colnames(n_reads) <- c("library","before_cleaning","after_cleaning","after_resizing")
+n_reads$var <- "read_count"
+
+n_bp <- stats %>%
+  dplyr::select(library,V4,V8,V12)
+colnames(n_bp) <- c("library","before_cleaning","after_cleaning","after_resizing")
+n_bp$var <- "basepair_count"
+
+tt <- ttheme_minimal()
+
+########################################
+########################################
+
 
 
 # Coverage: 
@@ -150,7 +208,7 @@ for (cov_file in cov_files) {
   print(cov_file)
   
   coverage <-read.table(file.path(mydir,cov_file))
-  head(coverage)
+  
   colnames(coverage) <- c("position","coverage")
   
   id <- sub(".*interleaved2_", "", cov_file)
@@ -182,16 +240,11 @@ get_me_stats <- function(DF) {
   return(out)
 }
 
-
-
-sink(file = paste0(mydir,"library_analysis.txt"), 
-     append = FALSE, type = c("output"))
-paste0("########### coverage ###########")
-paste0("##################################")
-df_to_fill_coverage %>% 
+cov_per_lib <- df_to_fill_coverage %>% 
   group_by(library) %>% 
   get_me_stats()
-sink()
+
+cov_per_lib$var <- "coverage"
 
 
 p1 <- ggplot(df_to_fill_coverage, aes(x=coverage, color=library)) +
@@ -275,8 +328,8 @@ df_to_fill_fragm_size <- data.frame(
 for (frag_file in frag_files) {
   
   # read in file 
-  frag_df <- read.table(file.path(mydir,frag_file), quote="\"", comment.char="")
-
+  frag_df <- read.table(file.path(mydir,frag_file[1]), quote="\"", comment.char="")
+  
   # transform fragment size values to absolute values (because pos and neg stand for forward and reverse reads)
   frag_df$V1 <- abs(frag_df$V1)
   
@@ -284,8 +337,7 @@ for (frag_file in frag_files) {
   new_df <- cbind( frag_df, order=seq(nrow(frag_df)) ) 
   
   id <- sub(".*interleaved2_", "", frag_file)
-  id <- sub(".dedup.txt", "", id)
-  id <- gsub("_R1","",id)
+  id <- gsub("_R1.dedup.txt","",id)
   id <- recode_fun(id)
   new_df$library=paste0(as.character(id))
   
@@ -390,21 +442,53 @@ straight_GC <- big_data %>%
 ########################################
 ########################################
 
-# PHRED scores plotting
+# PHRED scores 
 
-# open file contaning all the PHRED scores:
-PHRED_df <- read_csv(file.path(phred_dir,"PHRED_scores.csv"))
+PHRED_files = list.files(phred_dir,pattern=".csv")
 
-# subset
-PHRED_df <- PHRED_df %>% 
-  dplyr::mutate(library=as.factor(recode_fun(library))) %>%
-  dplyr::filter(library %in% my_subset) %>%
-  drop.levels()
+datalist = list()
+for (PHRED_file in PHRED_files) {
+  
+  # open file contaning all the PHRED scores:
+  PHRED_df <- read_csv(file.path(phred_dir,PHRED_file))
+  head(PHRED_df)
+  
+  PHRED_df$library <- gsub("_001","",PHRED_df$library) # to remove (from barcode libs)
+  
+  # get last two chars = read direction
+  PHRED_df$read <- str_sub(PHRED_df$library, -2, -1)
+  
+  # remove everything from library string after first underscore: 
+  PHRED_df$library <- gsub("\\_.*","",PHRED_df$library)
+  
+  # re-order libs (if this is NOT a HF-barcode libs)
+  if (str_sub(unique(PHRED_df$library), 1,10) != "HF-barcode") {
+    
+    # subset
+    PHRED_df <- PHRED_df %>% 
+      dplyr::mutate(library=as.factor(recode_fun(library))) %>%
+      dplyr::filter(library %in% my_subset) %>%
+      drop.levels()
+    
+    PHRED_df <- reorder_lib_fun(PHRED_df)
+    
+  }
+  
+  else {
+    
+    # subset
+    PHRED_df <- PHRED_df %>% 
+      dplyr::filter(library %in% my_subset) %>%
+      drop.levels()
+    
+  }
+  
+  datalist[[PHRED_file]] <- PHRED_df # add it to your list
+  
+}
 
-# re-order libs
-PHRED_df <- reorder_lib_fun(PHRED_df)
 
-PHRED_df$lib <- as.character(paste0(PHRED_df$library,"_",PHRED_df$read))
+phred_data = do.call(rbind, datalist)
 
 
 ########################################
@@ -507,7 +591,7 @@ fwrite(x=ME_data, file=paste0(mydir,"Alfred_ME_data.csv"))
 
 
 # plot
-pdf(paste0(mydir,'out.pdf'))
+pdf(paste0(mydir,species,'_out.pdf'))
 # plot coverage 
 ggarrange(p1,p2,                                    
           labels = c("A","B"), 
@@ -523,7 +607,7 @@ df_to_fill_coverage_wide %>%
   corrr::rplot(shape = 19, colors = c("red", "green"), print_cor = TRUE) # dot color = corr; dot size = absolute value of corr
 # plot fragment size 
 ggplot(df_to_fill_fragm_size, aes(V1, colour=library, fill=library)) + 
-  scale_x_continuous(limits=c(0,1000)) + 
+  scale_x_continuous(limits=c(100,1000)) + 
   xlab("fragment size (bp)")+
   geom_density(alpha=0.01) +
   theme_bw() + 
@@ -539,12 +623,12 @@ ggplot(df_to_fill_fragm_size, aes(V1, colour=library, fill=library)) +
 ggarrange(smooth_GC, straight_GC, 
           nrow = 2)
 # plot PHRED scores
-PHRED_df %>% 
+p <- phred_data %>% 
   ggplot(.,
          aes(x=read_position, y=PHRED_means, colour=library, shape = read,
              group=interaction(library, read))) + 
-  geom_point(alpha=0.8) + 
-  geom_line()+
+  geom_point(alpha=0.8, size=0.8) + 
+  geom_line(size=0.1)+
   xlab("read position (bp)") +
   ylab("average PHRED score") +
   theme_bw() +
@@ -558,10 +642,16 @@ PHRED_df %>%
         legend.title = element_blank(),
         axis.text=element_text(size=14),
         axis.title=element_text(size=18)) 
+if (NROW(unique(phred_data$library))>10) {
+  p <- p + 
+    theme(legend.position="none") +
+    ggtitle("HF barcode libraries")
+}
+p
 # plot read lengths
 ggplot(rl_to_fill_expand, aes(Readlength, colour=library, fill=library)) + 
   scale_x_continuous(limits=c(100,400)) + 
-  xlab("fragment size (bp)")+
+  xlab("length of mapped reads (bp)")+
   geom_density(alpha=0.01) +
   facet_grid(cols = vars(library)) +
   theme_bw() + 
@@ -575,9 +665,31 @@ ggplot(rl_to_fill_expand, aes(Readlength, colour=library, fill=library)) +
         axis.title=element_text(size=14))
 dev.off()
 
+# stats libs before, after cleaning and after resizing : 
+x <- cbind(read_lengths[,1:4],n_reads[,2:4],n_bp[,2:4])
+kbl(x, "html") %>%
+  kable_classic() %>%
+  add_header_above(c(" " = 1, "average read length" = 3, "# reads" = 3, "# bp" = 3)) %>%
+  as_image(width=7, file = paste0(mydir,species,"_stats.png"))
+class(sp)
+# stats coverage : 
+kbl(ME_data, "html") %>%
+  kable_classic() %>%
+  as_image(width=7, file = paste0(mydir,species,"_cov_stats.png"))
+
+
+
+
 
 ################################################################################
 ################################################################################
 ################################################################################
+
+
+
+
+
+
+
 
 

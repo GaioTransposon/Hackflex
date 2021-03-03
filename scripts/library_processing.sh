@@ -17,7 +17,6 @@
 ##########################
 
 #!/bin/bash
-#PBS -q i3q
 #PBS -l ncpus=10
 #PBS -l walltime=10:00:00
 #PBS -l mem=20g
@@ -50,16 +49,25 @@ reformat.sh in1=$first in2=$second out=interleaved2_$R1.fastq
 done < "forward_reverse.txt"
 
 
-# get number of reads before quality filtering and trimming: 
-rm reads_before_clean*
-for library in `ls interleaved*.fastq*`
+## get fragment sizes: 
+#for interleaved2 in `ls interleaved2*`
+#do
+#filename=$(basename $interleaved2)
+#N="${filename%.*}"
+#cat $interleaved2 | awk '{if(NR%4==2) print length($1)}' > frag_size_$N
+#done
+
+
+# reads BEFORE quality filtering and trimming: library, read avg length, #reads, #bases
+rm reads_before_cleaning*
+for interleaved2 in `ls interleaved2*`
 do
-echo "$library" >> reads_before_cleaning_col1
-cat $library | wc -l >> reads_before_cleaning_col2
+echo $interleaved2 >> reads_before_cleaning_col1 # library
+awk '{if(NR%4==2) {count++; bases += length} } END{print bases/count}' $interleaved2 >> reads_before_cleaning_col2 # read avg length 
+grep -E '^[ACTGN]+$' $interleaved2 | wc -l >> reads_before_cleaning_col3 # number of reads
+grep -E '^[ACTGN]+$' $interleaved2 | perl -pe 's/[[:space:]]//g' | wc -c >> reads_before_cleaning_col4 # number of bases 
 done
-paste reads_before_cleaning_col* | column -s $'\t' -t > reads_before_cleaning
-# divide the line count by 4 --> number of reads 
-cat reads_before_cleaning | awk '{print $1,$2/4}' > reads_before_cleaning.tsv
+paste reads_before_cleaning_col1 reads_before_cleaning_col2 reads_before_cleaning_col3 reads_before_cleaning_col4 > reads_before_cleaning.tsv
 
 
 # cleaning step 1: 
@@ -79,30 +87,46 @@ filename_lib=$(basename $trimmed_library)
 lib="${filename_lib%.*}"
 bbduk.sh threads=3 int=t in=$trimmed_library out=trimmed2\_$lib duk=cleaning2\_$lib ref=/shared/homes/12705859/miniconda3/envs/py_3.5/opt/bbmap-38.22-1/resources/adapters.fa maxgc=0.98 trimq=20 qtrim=r entropy=0.5 minavgquality=25
 done
-cat cleaning2_trim* > cleaning2.txt
 
 
-# get number of reads after quality filtering and trimming: 
-rm reads_after_clean*
-for trimmed_library in `ls trimmed2*`
+# reads after quality filtering and trimming: library, read avg length, #reads, #bases
+rm reads_after_cleaning*
+for trimmed2_library in `ls trimmed2_*`
 do
-echo "$trimmed_library" >> reads_after_cleaning_col1
-cat $trimmed_library | wc -l >> reads_after_cleaning_col2
+echo $trimmed2_library >> reads_after_cleaning_col1 # library
+awk '{if(NR%4==2) {count++; bases += length} } END{print bases/count}' $trimmed2_library >> reads_after_cleaning_col2 # read avg length 
+grep -E '^[ACTGN]+$' $trimmed2_library | wc -l >> reads_after_cleaning_col3 # number of reads
+grep -E '^[ACTGN]+$' $trimmed2_library | perl -pe 's/[[:space:]]//g' | wc -c >> reads_after_cleaning_col4 # number of bases 
 done
-paste reads_after_cleaning_col* | column -s $'\t' -t > reads_after_cleaning
-# divide the line count by 4 --> number of reads 
-cat reads_after_cleaning | awk '{print $1,$2/4}' > reads_after_cleaning.tsv
+paste reads_after_cleaning_col1 reads_after_cleaning_col2 reads_after_cleaning_col3 reads_after_cleaning_col4 > reads_after_cleaning.tsv
 
 
-# open last file created "reads_after_cleaning"; 
-# find smallest library (bases=reads*300) $ save the base count
-export smallest_lib_bases=`cat reads_after_cleaning.tsv | awk '{print $2*300}' | sort -n | head -n 1`
+# find smallest library and save the base count and resize libs based on that number 
+# int=f because if int(erleaved) is set to true, resizing won't happen as desired. 
+# This is probably because of the reads were originally not interleaved. It probably uses header info
+# that reformat.sh is not capable of reading correctly. It must be set: int=f. 
+export smallest_lib_reads=`cat reads_after_cleaning.tsv | awk '{print $3}' | sort -n | head -n 1`
 for trimmed2_library in `ls trimmed2_*`
 do
 filename_lib=$(basename $trimmed2_library)
 lib="${filename_lib%.*}"
-reformat.sh int=t -samplebasestarget=$smallest_lib_bases in=$trimmed2_library out=reduced\_$lib
+reformat.sh int=f samplereadstarget=$smallest_lib_reads in=$trimmed2_library out=reduced\_$lib
 done
+
+
+# get number of reads after library resizing: library, read avg length, #reads, #bases
+rm reads_after_resizing*
+for reduced in `ls reduced*`
+do
+echo $reduced >> reads_after_resizing_col1 # library
+awk '{if(NR%4==2) {count++; bases += length} } END{print bases/count}' $reduced >> reads_after_resizing_col2 # read avg length 
+grep -E '^[ACTGN]+$' $reduced | wc -l >> reads_after_resizing_col3 # number of reads
+grep -E '^[ACTGN]+$' $reduced | perl -pe 's/[[:space:]]//g' | wc -c >> reads_after_resizing_col4 # number of bases 
+done
+paste reads_after_resizing_col1 reads_after_resizing_col2 reads_after_resizing_col3 reads_after_resizing_col4 > reads_after_resizing.tsv
+
+# concat all stats
+paste reads_before_cleaning.tsv reads_after_cleaning.tsv reads_after_resizing.tsv > reads_stats.tsv
 
 
 ################################ PART 2 ################################
@@ -187,18 +211,6 @@ lib="${filename_lib%.*}"
 samtools mpileup $library | cut -f 2,4 > $lib.tsv
 done
 
-
-# get number of reads: 
-rm final_read_counts*
-for library in `ls *dedup.tsv*`
-do
-echo "$library" >> final_read_counts_col1
-cat $library | wc -l >> final_read_counts_col2
-done
-paste final_read_counts_col* | column -s $'\t' -t > final_read_counts
-cat final_read_counts | awk '{print $1,$2,$2/4}' > final_read_counts.tsv
-
-
 # get fragment sizes: 
 for file in `ls *.dedup.bam`
 do
@@ -206,7 +218,6 @@ filename=$(basename $file)
 N="${filename%.*}"
 samtools view $file | cut -f 9 > frag_sizes_$N.txt
 done
-
 
 
 ################################ PART 3 ################################
@@ -254,51 +265,52 @@ cat fastq2_files_headers_with_file_name* > all_fastq_headers.tsv
 
 # save all the useful output into a new directory
 mkdir out
+cp frag_size* out/.
 cp flagstat* out/.
 cp GC_* out/.
 cp RL_* out/.
-cp frag* out/.
 cp ME_* out/.
 cp reduced*.dedup.tsv out/.
-cp reads_after_cleaning.tsv out/. # this is useful to analyse barcode distribution
+cp reads_stats.tsv out/.
 cp all_fastq_headers.tsv out/. # barcodes 
 
 
 ########################################################################
 
 
-###
-
-export mydir=/shared/homes/12705859/HACKLEX_LIBS/goal_ecoli
-export ref_genome=/shared/homes/12705859/HACKLEX_LIBS/goal_ecoli/source_data/assembly.fasta
-qsub -V library_processing.sh 
-
-export mydir=/shared/homes/12705859/HACKLEX_LIBS/goal_paeruginosa
-export ref_genome=/shared/homes/12705859/HACKLEX_LIBS/goal_paeruginosa/source_data/all_p_aeruginosa.contigs.fasta
-qsub -V library_processing.sh 
-
-export mydir=/shared/homes/12705859/HACKLEX_LIBS/goal_saureus
-export ref_genome=/shared/homes/12705859/HACKLEX_LIBS/goal_saureus/source_data/Saureus.fa
-qsub -V library_processing.sh 
 
 ###
 
-export mydir=/shared/homes/12705859/HACKLEX_LIBS/goal_size_selection/ecoli
-export ref_genome=/shared/homes/12705859/HACKLEX_LIBS/goal_size_selection/ecoli/source_data/assembly.fasta
-qsub -V library_processing.sh 
+#export mydir=/shared/homes/12705859/HACKLEX_LIBS/goal_ecoli
+#export ref_genome=/shared/homes/12705859/HACKLEX_LIBS/goal_ecoli/source_data/assembly.fasta
+#qsub -V library_processing.sh 
 
-export mydir=/shared/homes/12705859/HACKLEX_LIBS/goal_size_selection/paeruginosa
-export ref_genome=/shared/homes/12705859/HACKLEX_LIBS/goal_size_selection/paeruginosa/source_data/all_p_aeruginosa.contigs.fasta
-qsub -V library_processing.sh
+#export mydir=/shared/homes/12705859/HACKLEX_LIBS/goal_paeruginosa
+#export ref_genome=/shared/homes/12705859/HACKLEX_LIBS/goal_paeruginosa/source_data/all_p_aeruginosa.contigs.fasta
+#qsub -V library_processing.sh 
 
-export mydir=/shared/homes/12705859/HACKLEX_LIBS/goal_size_selection/saureus
-export ref_genome=/shared/homes/12705859/HACKLEX_LIBS/goal_size_selection/saureus/source_data/Saureus.fa
-qsub -V library_processing.sh
+#export mydir=/shared/homes/12705859/HACKLEX_LIBS/goal_saureus
+#export ref_genome=/shared/homes/12705859/HACKLEX_LIBS/goal_saureus/source_data/Saureus.fa
+#qsub -V library_processing.sh 
 
 ###
 
-export mydir=/shared/homes/12705859/HACKLEX_LIBS/goal_barcode
-export ref_genome=/shared/homes/12705859/HACKLEX_LIBS/goal_barcode/source_data/assembly.fasta
-qsub -V library_processing.sh 
+#export mydir=/shared/homes/12705859/HACKLEX_LIBS/goal_size_selection/ecoli
+#export ref_genome=/shared/homes/12705859/HACKLEX_LIBS/goal_size_selection/ecoli/source_data/assembly.fasta
+#qsub -V library_processing.sh 
+
+#export mydir=/shared/homes/12705859/HACKLEX_LIBS/goal_size_selection/paeruginosa
+#export ref_genome=/shared/homes/12705859/HACKLEX_LIBS/goal_size_selection/paeruginosa/source_data/all_p_aeruginosa.contigs.fasta
+#qsub -V library_processing.sh
+
+#export mydir=/shared/homes/12705859/HACKLEX_LIBS/goal_size_selection/saureus
+#export ref_genome=/shared/homes/12705859/HACKLEX_LIBS/goal_size_selection/saureus/source_data/Saureus.fa
+#qsub -V library_processing.sh
+
+###
+
+#export mydir=/shared/homes/12705859/HACKLEX_LIBS/goal_barcode
+#export ref_genome=/shared/homes/12705859/HACKLEX_LIBS/goal_barcode/source_data/assembly.fasta
+#qsub -V library_processing.sh 
 
 ###
