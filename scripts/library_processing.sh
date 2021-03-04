@@ -49,25 +49,15 @@ reformat.sh in1=$first in2=$second out=interleaved2_$R1.fastq
 done < "forward_reverse.txt"
 
 
-## get fragment sizes: 
-#for interleaved2 in `ls interleaved2*`
-#do
-#filename=$(basename $interleaved2)
-#N="${filename%.*}"
-#cat $interleaved2 | awk '{if(NR%4==2) print length($1)}' > frag_size_$N
-#done
-
-
 # reads BEFORE quality filtering and trimming: library, read avg length, #reads, #bases
 rm reads_before_cleaning*
 for interleaved2 in `ls interleaved2*`
 do
 echo $interleaved2 >> reads_before_cleaning_col1 # library
 awk '{if(NR%4==2) {count++; bases += length} } END{print bases/count}' $interleaved2 >> reads_before_cleaning_col2 # read avg length 
-grep -E '^[ACTGN]+$' $interleaved2 | wc -l >> reads_before_cleaning_col3 # number of reads
-grep -E '^[ACTGN]+$' $interleaved2 | perl -pe 's/[[:space:]]//g' | wc -c >> reads_before_cleaning_col4 # number of bases 
+cat $interleaved2 | grep "1:N\|2:N" | wc -l >> reads_before_cleaning_col3 # number of reads
 done
-paste reads_before_cleaning_col1 reads_before_cleaning_col2 reads_before_cleaning_col3 reads_before_cleaning_col4 > reads_before_cleaning.tsv
+paste reads_before_cleaning_col1 reads_before_cleaning_col2 reads_before_cleaning_col3 > reads_before_cleaning.tsv
 
 
 # cleaning step 1: 
@@ -89,28 +79,36 @@ bbduk.sh threads=3 int=t in=$trimmed_library out=trimmed2\_$lib duk=cleaning2\_$
 done
 
 
+## cleaning step 3: 
+#rm cleaning3*
+#for trimmed2_library in `ls trimmed2*`
+#do
+#filename_lib=$(basename $trimmed2_library)
+#lib="${filename_lib%.*}"
+#bbduk.sh threads=3 int=t in=$trimmed2_library out=trimmed3\_$lib duk=cleaning3\_$lib forcetrimleft=15 forcetrimright=65
+#done
+
+
 # reads after quality filtering and trimming: library, read avg length, #reads, #bases
 rm reads_after_cleaning*
 for trimmed2_library in `ls trimmed2_*`
 do
 echo $trimmed2_library >> reads_after_cleaning_col1 # library
 awk '{if(NR%4==2) {count++; bases += length} } END{print bases/count}' $trimmed2_library >> reads_after_cleaning_col2 # read avg length 
-grep -E '^[ACTGN]+$' $trimmed2_library | wc -l >> reads_after_cleaning_col3 # number of reads
-grep -E '^[ACTGN]+$' $trimmed2_library | perl -pe 's/[[:space:]]//g' | wc -c >> reads_after_cleaning_col4 # number of bases 
+cat $trimmed2_library | grep "1:N\|2:N" | wc -l >> reads_after_cleaning_col3 # number of reads
 done
-paste reads_after_cleaning_col1 reads_after_cleaning_col2 reads_after_cleaning_col3 reads_after_cleaning_col4 > reads_after_cleaning.tsv
+paste reads_after_cleaning_col1 reads_after_cleaning_col2 reads_after_cleaning_col3 > reads_after_cleaning.tsv
 
 
-# find smallest library and save the base count and resize libs based on that number 
-# int=f because if int(erleaved) is set to true, resizing won't happen as desired. 
-# This is probably because of the reads were originally not interleaved. It probably uses header info
-# that reformat.sh is not capable of reading correctly. It must be set: int=f. 
-export smallest_lib_reads=`cat reads_after_cleaning.tsv | awk '{print $3}' | sort -n | head -n 1`
+# find smallest library and save the base count and resize libs based on that number :
+# must be divided by 2 because samplereadstarget is interpreted as the number of read pairs to sample when you set interleaved=t
+export smallest_lib_reads=`cat reads_after_cleaning.tsv | awk '{print $3/2}' | sort -n | head -n 1` 
+echo $smallest_lib_reads
 for trimmed2_library in `ls trimmed2_*`
 do
 filename_lib=$(basename $trimmed2_library)
 lib="${filename_lib%.*}"
-reformat.sh int=f samplereadstarget=$smallest_lib_reads in=$trimmed2_library out=reduced\_$lib
+reformat.sh int=t samplereadstarget=$smallest_lib_reads in=$trimmed2_library out=reduced\_$lib
 done
 
 
@@ -120,10 +118,9 @@ for reduced in `ls reduced*`
 do
 echo $reduced >> reads_after_resizing_col1 # library
 awk '{if(NR%4==2) {count++; bases += length} } END{print bases/count}' $reduced >> reads_after_resizing_col2 # read avg length 
-grep -E '^[ACTGN]+$' $reduced | wc -l >> reads_after_resizing_col3 # number of reads
-grep -E '^[ACTGN]+$' $reduced | perl -pe 's/[[:space:]]//g' | wc -c >> reads_after_resizing_col4 # number of bases 
+cat $reduced | grep "1:N\|2:N" | wc -l >> reads_after_resizing_col3 # number of reads
 done
-paste reads_after_resizing_col1 reads_after_resizing_col2 reads_after_resizing_col3 reads_after_resizing_col4 > reads_after_resizing.tsv
+paste reads_after_resizing_col1 reads_after_resizing_col2 reads_after_resizing_col3 > reads_after_resizing.tsv
 
 # concat all stats
 paste reads_before_cleaning.tsv reads_after_cleaning.tsv reads_after_resizing.tsv > reads_stats.tsv
@@ -141,7 +138,7 @@ for library in `ls reduced*`
 do
 filename_lib=$(basename $library)
 lib="${filename_lib%.*}"
-bwa mem -p $ref_genome $library > $lib.sam # S. aureus to be replaced with $ref_genome
+bwa mem -p $ref_genome $library > $lib.sam 
 done
 
 
@@ -211,14 +208,6 @@ lib="${filename_lib%.*}"
 samtools mpileup $library | cut -f 2,4 > $lib.tsv
 done
 
-# get fragment sizes: 
-for file in `ls *.dedup.bam`
-do
-filename=$(basename $file)
-N="${filename%.*}"
-samtools view $file | cut -f 9 > frag_sizes_$N.txt
-done
-
 
 ################################ PART 3 ################################
 
@@ -227,17 +216,22 @@ do
 filename=$(basename $file)
 N="${filename%.*}"
 echo $file
-alfred qc -r $ref_genome -o qc_$N $file    # replace ref with $ref_genome
+alfred qc -r $ref_genome -o qc_$N.tsv.gz $file    # replace ref with $ref_genome
+alfred qc -r $ref_genome -j qc_$N.json.gz $file    # replace ref with $ref_genome
 done
 
-for file in `ls qc_*`
+for file in `ls qc*tsv.gz`
 do
 filename=$(basename $file)
 N="${filename%.*}"
 echo $file
-zgrep ^GC $file | cut -f 2- > GC_$N.tsv
-zgrep ^RL $file | cut -f 2- > RL_$N.tsv
-zgrep ^ME $file | cut -f 2- > ME_$N.tsv
+zgrep ^GC $file | cut -f 2- > GC_$N.tsv # GC-content (GC)
+zgrep ^RL $file | cut -f 2- > RL_$N.tsv # Read length distribution (RL)
+zgrep ^IS $file | cut -f 2- > IS_$N.tsv # Insert size histogram (IS).
+zgrep ^CO $file | cut -f 2- > CO_$N.tsv # Coverage histogram (CO)
+zgrep ^CM $file | cut -f 2- > CM_$N.tsv # Chromosome mapping statistics (CM)
+zgrep ^MQ $file | cut -f 2- > MQ_$N.tsv # Mapping quality histogram (MQ)
+zgrep ^ME $file | cut -f 2- > ME_$N.tsv # Alignment summary metrics (ME)
 done
 
 ################################ PART 4 ################################
@@ -259,21 +253,31 @@ done
 # concatenate all
 cat fastq2_files_headers_with_file_name* > all_fastq_headers.tsv 
 
+# do some extra cleaning for the barcodes from the 96 libs (otherwise files is too large to move around)
+if [ $mydir == "/shared/homes/12705859/HACKLEX_LIBS/goal_barcode" ]; then
+   awk -F " " '{print $1}' all_fastq_headers.tsv | cut -c35- | cut -c-11 > all_fastq_headers_col1.tsv
+   awk -F " " '{print $2}' all_fastq_headers.tsv | cut -c27- > all_fastq_headers_col2.tsv
+   awk -F " " '{print $3}' all_fastq_headers.tsv > all_fastq_headers_col3.tsv
+   paste all_fastq_headers_col1.tsv all_fastq_headers_col2.tsv all_fastq_headers_col3.tsv > all_fastq_headers_clean.tsv
+fi
 
 ################################ PART 5 ################################
 
 
 # save all the useful output into a new directory
 mkdir out
-cp frag_size* out/.
-cp flagstat* out/.
-cp GC_* out/.
-cp RL_* out/.
-cp ME_* out/.
-cp reduced*.dedup.tsv out/.
-cp reads_stats.tsv out/.
-cp all_fastq_headers.tsv out/. # barcodes 
-
+mv flagstat* out/.
+mv GC_* out/.
+mv RL_* out/.
+mv IS_* out/.
+mv CO_* out/.
+mv CM_* out/.
+mv MQ_* out/.
+mv ME_* out/.
+mv reads_stats.tsv out/.
+mv all_fastq_headers.tsv out/. # barcodes 
+mv all_fastq_headers_clean.tsv out/. # barcodes 
+mv qc_*.json.gz out/. # alfred web interactive - input
 
 ########################################################################
 
@@ -314,3 +318,5 @@ cp all_fastq_headers.tsv out/. # barcodes
 #qsub -V library_processing.sh 
 
 ###
+
+
