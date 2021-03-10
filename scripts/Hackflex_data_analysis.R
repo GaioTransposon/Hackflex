@@ -16,8 +16,8 @@ library(data.table)
 library(gridExtra)
 library(grid)
 library(stringr)
-library(kableExtra)
 library(knitr)
+library(kableExtra) # S: kableExtra is dependant on knitr, inverting the load order could break something
 
 
 
@@ -591,7 +591,10 @@ fwrite(x=ME_data, file=paste0(mydir,"Alfred_ME_data.csv"))
 
 
 # plot
-pdf(paste0(mydir,species,'_out.pdf'))
+
+                                      # S: TODO create dir before pdf() function
+pdf(paste0(mydir,species,'_out.pdf')) # S: could give error: cannot create file '[filename]', reason 'No such file or directory'
+
 # plot coverage 
 ggarrange(p1,p2,                                    
           labels = c("A","B"), 
@@ -667,15 +670,17 @@ dev.off()
 
 # stats libs before, after cleaning and after resizing : 
 x <- cbind(read_lengths[,1:4],n_reads[,2:4],n_bp[,2:4])
-kbl(x, "html") %>%
+kable(x, "html") %>%
   kable_classic() %>%
   add_header_above(c(" " = 1, "average read length" = 3, "# reads" = 3, "# bp" = 3)) %>%
-  as_image(width=7, file = paste0(mydir,species,"_stats.png"))
+  # as_image(width=7, file = paste0(mydir,species,"_stats.png")) # S: TODO cleanup later
+  save_kable(file = paste0(mydir,species,"_stats.pdf"))
 class(sp)
 # stats coverage : 
-kbl(ME_data, "html") %>%
+kable(ME_data, "html") %>%
   kable_classic() %>%
-  as_image(width=7, file = paste0(mydir,species,"_cov_stats.png"))
+  # as_image(width=7, file = paste0(mydir,species,"_cov_stats.png")) # S: TODO cleanup later
+  save_kable(file = paste0(mydir,species,"_cov_stats.pdf"))
 
 
 
