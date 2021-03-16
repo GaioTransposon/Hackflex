@@ -27,23 +27,23 @@ library(kableExtra)
 
 # set directories and select samples: 
 
-# mydir <- "~/Desktop/MG1655/goal_ecoli/"
-# phred_dir <- "~/Desktop/MG1655/raw_libs/"
-# my_subset <- c("Ec.SF_1.B1",
-#                "Ec.SF_1:50.B1",
-#                "Ec.HF.B3",
-#                "Ec.HF_55A.B2",
-#                "Ec.SF_1.B2",
-#                "Ec.SF_1_PS.B2",
-#                "Ec.SF_1:50.B2") # all from E. coli
-
-mydir <- "~/Desktop/MG1655/goal_paeruginosa/"
+mydir <- "~/Desktop/MG1655/goal_ecoli/"
 phred_dir <- "~/Desktop/MG1655/raw_libs/"
-my_subset <- c("Pa.SF_1.B1",
-               "Pa.SF_1:50.B1",
-               "Pa.HF.B2",
-               "Pa.HF_55A.B2",
-               "Pa.HF_55A72E.B2") # all from P. aeruginosa
+my_subset <- c("Ec.SF_1.B1",
+               #"Ec.SF_1:50.B1",
+               "Ec.HF.B3",
+               "Ec.HF_55A.B2")
+               #"Ec.SF_1.B2",
+               #"Ec.SF_1_PS.B2",
+               #"Ec.SF_1:50.B2") # all from E. coli
+
+# mydir <- "~/Desktop/MG1655/goal_paeruginosa/"
+# phred_dir <- "~/Desktop/MG1655/raw_libs/"
+# my_subset <- c("Pa.SF_1.B1",
+#                "Pa.SF_1:50.B1",
+#                "Pa.HF.B2",
+#                "Pa.HF_55A.B2",
+#                "Pa.HF_55A72E.B2") # all from P. aeruginosa
 # 
 # mydir <- "~/Desktop/MG1655/goal_saureus/"
 # phred_dir <- "~/Desktop/MG1655/raw_libs/"
@@ -109,26 +109,26 @@ recode_fun <- function(chars) {
 
 # reorder lib factor - function 
 reorder_lib_fun <- function(df) {
-
+  
   df$library  = factor(df$library, levels=c("Ec.SF_1.B1",
-                                         "Ec.SF_1:50.B1",
-                                         "Ec.HF.B3",
-                                         "Ec.HF_55A.B2",
-                                         "Ec.HF_06x.B3",
-                                         "Ec.SF_1.B2",
-                                         "Ec.SF_1_PS.B2",
-                                         "Ec.SF_1:50.B2",
-                                         "Pa.SF_1.B1",
-                                         "Pa.SF_1:50.B1",
-                                         "Pa.HF.B2",
-                                         "Pa.HF_55A.B2",
-                                         "Pa.HF_55A72E.B2",
-                                         "Pa.HF_06x.B3",
-                                         "Sa.SF_1.B1",
-                                         "Sa.SF_1:50.B1",
-                                         "Sa.HF.B2",
-                                         "Sa.HF_55A.B2",
-                                         "Sa.HF_06x.B3"))
+                                            "Ec.SF_1:50.B1",
+                                            "Ec.HF.B3",
+                                            "Ec.HF_55A.B2",
+                                            "Ec.HF_06x.B3",
+                                            "Ec.SF_1.B2",
+                                            "Ec.SF_1_PS.B2",
+                                            "Ec.SF_1:50.B2",
+                                            "Pa.SF_1.B1",
+                                            "Pa.SF_1:50.B1",
+                                            "Pa.HF.B2",
+                                            "Pa.HF_55A.B2",
+                                            "Pa.HF_55A72E.B2",
+                                            "Pa.HF_06x.B3",
+                                            "Sa.SF_1.B1",
+                                            "Sa.SF_1:50.B1",
+                                            "Sa.HF.B2",
+                                            "Sa.HF_55A.B2",
+                                            "Sa.HF_06x.B3"))
   # drop unused levels
   df <- df %>% 
     drop.levels()
@@ -212,15 +212,14 @@ for (cov_file in cov_files) {
   print(cov_file)
   
   coverage <-read_table2(file.path(mydir,cov_file))
-  head(coverage)
 
   # expand rows and select cols
   coverage <- coverage %>% 
     uncount(Count) %>%
     dplyr::select(Sample,Coverage,Quantile)
-
+  
   # clean lib names
-  id <- sub("CO_qc_reduced_trimmed2_trimmed_interleaved2_", "", cov_file)
+  id <- sub(".*interleaved2_", "", cov_file)
   id <- sub("_R1.dedup.tsv.tsv", "", id)
   id <- recode_fun(id)
   coverage$library=paste0(as.character(id))
@@ -250,111 +249,71 @@ get_me_stats <- function(DF) {
   return(out)
 }
 
-cov_per_lib <- df_to_fill_coverage %>% 
-  group_by(library) %>% 
-  get_me_stats()
 
-cov_per_lib$var <- "coverage"
 
-p1 <- ggplot(df_to_fill_coverage, aes(x=Coverage, color=library)) +
-  geom_histogram(fill="white", alpha=0.5,
-                 position="identity",
-                 binwidth=0.5)+
-  facet_grid(cols = vars(library)) +
-  theme(legend.position="top",
-        legend.title = element_blank())+
-  xlim(0,100) +
-  labs(x="coverage per site",
-       y="Frequency")
 
-z1 <- df_to_fill_coverage %>%
+text <- df_to_fill_coverage %>%
   group_by(library) %>% 
   dplyr::mutate(mean=mean(Coverage),
-                sd=sd(Coverage))
-
-z2 <- df_to_fill_coverage %>% 
-  group_by(library) %>% 
-  dplyr::mutate(n_sites=n(),
-                zeros=NROW(which(Coverage==0)),
-                perc=round(zeros/n_sites*100,2)) %>% 
-  dplyr::filter(Coverage < 3) 
-
-dat_text1 <- z1 %>%
-  dplyr::select(library,mean,sd) %>%
+                sd=sd(Coverage),
+                zeros=NROW(which(Coverage==0))) %>%
+  dplyr::select(library,mean,sd,zeros) %>%
   distinct() %>%
-  dplyr::mutate(label=paste0("mean=",round(mean,2),"\n sd=",round(sd,2)))
+  dplyr::mutate(label=paste0("mean=",round(mean,2),
+                             "\n sd=",round(sd,2),
+                             "\n zero=", zeros))
 
-dat_text2 <- z2 %>%
-  dplyr::select(library,perc,zeros) %>%
-  distinct() %>%
-  dplyr::mutate(label=paste0("n=",zeros,"\n",perc,"%"))
-
-# main 
-p1 <- ggplot(z1, aes(x=Coverage, color=library)) +
-  geom_histogram(fill="white", alpha=0.5,
-                 position="identity",
-                 binwidth=0.5)+
-  facet_grid(cols = vars(library)) +
+p1 <- ggplot(df_to_fill_coverage, aes(x=Coverage, color=library)) +
+  geom_density(alpha=0.01) +
   theme(legend.position="top",
         legend.title = element_blank())+
   xlim(0,100) +
   labs(x="coverage per site",
-       y="Frequency")
+       y="Frequency") +
+  theme_bw()+
+  theme(legend.position="none")
 
-p1 <- p1 + geom_text(
-  data    = dat_text1,
-  mapping = aes(x = Inf, y = Inf, label = label, hjust=1.0, vjust=1), #vjust=1 hjust=1.0
-  size=3
-)
 
-# low coverage sites 
-p2 <- z2 %>% dplyr::filter(Coverage < 3) %>%
+p2 <- df_to_fill_coverage %>%
+  dplyr::filter(Coverage < 4) %>%
   ggplot(., aes(x=Coverage, color=library)) +
   geom_histogram(fill="white", alpha=0.5,
                  position="identity",
                  binwidth=0.5)+
-  facet_grid(cols = vars(library)) +
+  facet_grid(rows = vars(library)) +
   theme(legend.position="top",
         legend.title = element_blank())+
-  xlim(-0.5,3) +
+  xlim(-0.5,5.5) +
   labs(x="coverage per site",
-       y="Frequency")
+       y="Frequency") +
+  theme_bw()+
+  theme(legend.position="none",
+        strip.text.y = element_text(size = 7, 
+                                    colour = "black", 
+                                    angle = 0)) +
+  geom_text(
+    data    = text,
+    mapping = aes(x = Inf, y = Inf, label = label, hjust=1.0, vjust=1), #vjust=1 hjust=1.0
+    size=3
+  )
 
-p2 <- p2 + geom_text(
-  data    = dat_text2,
-  mapping = aes(x = Inf, y = Inf, label = label, hjust=1.0, vjust=1), #vjust=1 hjust=1.0
-  size=3
-)
+
+# final cov plot
+cov_plot <- ggarrange(p1, p2, 
+                      ncol=2, nrow=1, common.legend = TRUE,
+                      labels=c("A","B"))
 
 
-
-
-########################################
-
-
-# Correlation between libraries based on their coverage :
-mycor_df <- df_to_fill_coverage %>%
-  group_by(library) %>%
-  dplyr::arrange(desc(Coverage)) %>%
-  dplyr::mutate(position = row_number()) %>%
-  dplyr::select(library,Coverage, position) 
-mycor <- mycor_df %>%
-  pivot_wider(names_from=library, values_from=Coverage) 
-mycor$position <- NULL
-head(mycor)
-
-# compute correlation between libs based on their coverage
-res1.1 <- cor.mtest(mycor, conf.level = .95)
-M.1 <- cor(mycor, use = "pairwise.complete.obs", method = "pearson")
 
 ########################################
 
-# Coverage (from bedgraphs): 
+# Correlation between libraries based on their coverage (from bedgraphs): 
 bed <-read.table(file.path(mydir,"merged_bedgraphs.txt"), header = TRUE )
 head(bed)
+tail(bed)
 
 # clean colnames
-colnames(bed)<-gsub("reduced_trimmed2_trimmed_interleaved2_","",colnames(bed))
+colnames(bed)<-sub(".*interleaved2_", "", colnames(bed))
 colnames(bed)<-gsub("_R1.bedgraph","",colnames(bed))
 colnames(bed) <- recode_fun(colnames(bed))
 
@@ -362,23 +321,38 @@ colnames(bed) <- recode_fun(colnames(bed))
 bed <- bed %>%
   dplyr::select(chrom, start, end, my_subset)
 
+# correlation by coverage: 
 bed_libs <- bed[,4:ncol(bed)]
 # compute correlation between libs based on their coverage
-res1 <- cor.mtest(bed_libs, conf.level = .95)
+res <- cor.mtest(bed_libs, conf.level = .95)
 M <- cor(bed_libs, use = "pairwise.complete.obs", method = "pearson")
 
+M
+
+# check low coverage regions
+
+# reduce to keep first two (largest) contigs:
+bed$chrom <- as.character(bed$chrom)
+keep <- unique(bed$chrom)[1:2]
+# now I will use these IDs to plot interesting stuff
+bed <- subset(bed, (chrom %in% keep))
+
+# there is some weird lines created in the bedgraphs. If diff between start and end is larger than 50bp, remove line. 
+# I checked and it's fine. There is for each chromosome (contig) a "4294967114" out of the blue
+# bed$diff <- bed$end-bed$start
+# bed <- bed %>%
+#   dplyr::filter(diff<50) %>%
+#   dplyr::select(!diff)
 
 # subset to low coverage regions and plot: 
-
 # take along any row where any of the libraries has a coverage lower than 5 read counts
 bed_lowest_cov <- bed 
 
 bed_lowest_cov$lowest_cov <- apply(bed_lowest_cov[,4:ncol(bed_lowest_cov)], 1, FUN=min)
 
 head(bed_lowest_cov)
-
 bed_lowest_cov <- bed_lowest_cov %>%
-  dplyr::filter(lowest_cov<1) %>%
+  dplyr::filter(lowest_cov<10) %>%
   dplyr::select(!lowest_cov)
 
 # pivot long
@@ -387,8 +361,8 @@ bed_lowest_cov_long <- bed_lowest_cov %>%
 bed_lowest_cov_long$chrom <- as.character(bed_lowest_cov_long$chrom)
 
 head(bed_lowest_cov_long)
- 
-# create bins of genoic regions. 10 bins per library and per chromosome. 
+
+# create bins of genomic regions. 10 bins per library and per chromosome. 
 z <- bed_lowest_cov_long %>%
   group_by(library,chrom) %>%
   dplyr::mutate(counts_cut_number=cut_number(start, n = 10)) %>%
@@ -397,23 +371,32 @@ z <- bed_lowest_cov_long %>%
                    min=min(start)) %>%
   dplyr::select(chrom,library,mean,min)
 
-head(z)
+mycolors<- c('#999999', # grey
+             '#E69F00', # orange
+             '#56B4E9', # blue
+             "#FF3300", # red
+             "#333399", # purple
+             "#33CC33", # green
+             "#FFFF00") # yellow
+
+myshapes<- c(0, 1, 8, 9, 15, 17, 19)
+
 
 lowest_cov_plot <- z %>%
-  ggplot(., aes(x=min,y=mean,color=library))+
-  geom_line(size=0.5)+
-  geom_point(size=0.7)+
-  facet_grid(library ~ chrom, scales="free_x") +
+  ggplot(., aes(x=min,y=mean,group=library))+
+  geom_point(aes(shape=library, color=library), size=2)+
+  scale_shape_manual(values=myshapes)+
+  scale_color_manual(values=mycolors)+
+  facet_grid(~chrom, scales="free_x") +
   theme_bw()+
   theme(axis.text.x=element_text(size=6, angle=90),
         strip.text.y = element_text(size = 8, 
                                     colour = "black", 
                                     angle = 0),
-        legend.position="none")+
+        legend.position="right")+
   labs(x="Genomic position (bp)",
        y="Coverage", 
        title = "Regions with lowest coverage")
-
 
 ########################################
 ########################################
@@ -435,10 +418,10 @@ for (IS_file in IS_files) {
   
   # read in file 
   IS_df <- read.table(file.path(mydir,IS_file), quote="\"", comment.char="", header = TRUE)
-  
-  IS_df <- IS_df %>%
-    dplyr::filter(Layout=="R+"|Layout=="R-")
 
+  # IS_df <- IS_df %>%
+  #   dplyr::filter(Layout=="F+"|Layout=="F-")
+  
   id <- sub(".*interleaved2_", "", IS_file)
   id <- gsub("_R1.dedup.tsv.tsv","",id)
   id <- recode_fun(id)
@@ -465,20 +448,20 @@ df_to_fill_insert_size <- reorder_lib_fun(df_to_fill_insert_size)
 med_IS <- df_to_fill_insert_size %>%
   uncount(Count) %>%
   group_by(library) %>%
-  dplyr::summarize(median=median(InsertSize),
-                   mean=mean(InsertSize))
+  dplyr::summarize(median=round(median(InsertSize),2),
+                   mean=round(mean(InsertSize),2))
 
 # expand rows based on Count, select cols, and plot
 insert_size_plot_facets <- df_to_fill_insert_size %>% 
   uncount(Count) %>%
   dplyr::select(library,InsertSize,Layout) %>%
   ggplot(., aes(InsertSize, colour=library, fill=library)) + 
-  scale_x_continuous(limits=c(100,1000)) + 
+  scale_x_continuous(limits=c(0,1000)) + 
   facet_grid(rows = vars(library), scales = "free") +
   xlab("insert size (bp)")+
   geom_density(alpha=0.01) +
   geom_vline(data = med_IS, aes(xintercept = median, 
-                                       color = library), size=0.5)+
+                                color = library), size=0.5)+
   theme_bw() + 
   theme(panel.border = element_blank(), 
         panel.grid.major = element_blank(), 
@@ -491,18 +474,14 @@ insert_size_plot_facets <- df_to_fill_insert_size %>%
         strip.text.y = element_text(size = 8, 
                                     colour = "black", 
                                     angle = 0)) +
-  # geom_text(data=med_IS, 
-  #           aes(x=Inf, y=Inf, label=paste0("median=",median), color=library), size=2, angle=90, hjust=1, vjust=1.5)+
   geom_text(data=med_IS, 
-            aes(x=650, y=Inf, label=paste0("median=",median), color=library), size=2, hjust=1, vjust=1.5)+
-  geom_text(data=med_IS, 
-            aes(x=1000, y=Inf, label=paste0("mean=",mean), color=library), size=2, hjust=1, vjust=1.5)
+            aes(x=900, y=Inf, label=paste0("median=",median,"\n","mean=",mean), color=library), size=2, hjust=1, vjust=1.5)
 
 insert_size_plot_together <- df_to_fill_insert_size %>% 
   uncount(Count) %>%
   dplyr::select(library,InsertSize,Layout) %>%
   ggplot(., aes(InsertSize, colour=library, fill=library)) + 
-  scale_x_continuous(limits=c(100,1000)) + 
+  scale_x_continuous(limits=c(0,1000)) + 
   xlab("insert size (bp)")+
   geom_density(alpha=0.01) +
   theme_bw() + 
@@ -517,15 +496,14 @@ insert_size_plot_together <- df_to_fill_insert_size %>%
 
 # final plot
 insert_size_plot <- ggarrange(insert_size_plot_together, insert_size_plot_facets, 
-          ncol=2, nrow=1, common.legend = TRUE,
-          labels=c("A","B"))
+                              ncol=2, nrow=1, common.legend = TRUE,
+                              labels=c("A","B"))
 
 ########################################
 ########################################
 
 
 # GC content: 
-
 
 gc_files = list.files(mydir,pattern="GC_qc")
 
@@ -541,7 +519,7 @@ for (gc_file in gc_files) {
   
   gc <- gc_file
   
-  id <- gsub("GC_qc_reduced_trimmed2_trimmed_interleaved2_", "",gc)
+  id <- sub(".*interleaved2_", "",gc)
   id <- gsub("_R1.dedup.tsv.tsv","",id)
   id <- recode_fun(id)
   
@@ -576,7 +554,7 @@ for (gc_file in gc_files) {
   rho <- wtd.cor(myDF$REF_GCcontent,myDF$diff,weight=myDF$LIB_fractionOfReads)
   rho <- rho[1,1]
   myDF$rho <- rho
-
+  
   GC_DF <- rbind(GC_DF, myDF)
   
 }
@@ -591,29 +569,49 @@ GC_DF <- reorder_lib_fun(GC_DF)
 
 head(GC_DF)
 
-smooth_GC <- GC_DF %>% 
-  dplyr::filter(diff!=1) %>% 
-  ggplot(.,aes(x=REF_GCcontent,y=diff,color=library))+
-  geom_point(alpha=0.3)+
-  theme_bw() +
-  xlim(0.1,0.9) +
-  geom_smooth(size=0.5, alpha=0) +
-  ylab("ratio observed/expected reads") +
-  theme(legend.position="none") +
-  stat_cor(p.accuracy = 0.001, r.accuracy = 0.01)
+GC_DF_text <- GC_DF %>% dplyr::select(library,rho) %>% distinct() %>%
+  dplyr::arrange(library) %>% # to get the factors order
+  dplyr::mutate(label=paste0(library), 
+                label_rho=paste0("rho=",round(rho,3)),  
+                pos=7.5+seq(1:NROW(.)))
+
+# smooth_GC <- GC_DF %>% 
+#   dplyr::filter(diff!=1) %>% # don't show in plot ratio=1; rhos is already caculared previously
+#   ggplot(.,aes(x=REF_GCcontent,y=diff,color=library))+
+#   geom_point(alpha=0.3)+
+#   theme_bw() +
+#   xlim(0.1,0.9) +
+#   ylim(-2.5,15)+
+#   geom_smooth(size=0.5, alpha=0) +
+#   ylab("ratio observed/expected reads") +
+#   theme(legend.position="none") +
+#   geom_text(
+#     data    = GC_DF_text,
+#     mapping = aes(x = 0.50, y = pos, label = label, hjust=0, vjust=1), #vjust=1 hjust=1.0
+#     size=3
+#   )
+
 
 straight_GC <- GC_DF %>% 
-  dplyr::filter(diff!=1) %>% 
+  #dplyr::filter(diff!=1) %>% # don't show in plot ratio=1; rhos is already caculared previously
   ggplot(.,aes(x=REF_GCcontent,y=diff,color=library))+
   geom_point(alpha=0.3)+
   theme_bw() +
   xlim(0.1,0.9) +
+  ylim(-2.5,15)+
   stat_smooth(method="lm", se=FALSE, size=0.5) +
   ylab("ratio observed/expected reads") +
-  theme(legend.title = element_blank(),
-        legend.position="top") +
-  stat_cor(p.accuracy = 0.001, r.accuracy = 0.01)
-
+  theme(legend.position="none") +
+  geom_text(
+    data    = GC_DF_text,
+    mapping = aes(x = 0.45, y = pos, label = label, hjust=0, vjust=1), #vjust=1 hjust=1.0
+    size=3
+  ) +
+  geom_text(
+    data    = GC_DF_text,
+    mapping = aes(x = 0.75, y = pos, label = label_rho, hjust=0, vjust=1), #vjust=1 hjust=1.0
+    size=3
+  )
 
 ########################################
 ########################################
@@ -716,10 +714,10 @@ for (rl_file in rl_files) {
   
   unique(rl_df$Library)
   head(rl_df)
-
+  
   rl_df <- rl_df %>% 
     dplyr::select(Sample,Readlength,Count, Fraction, Read)
-
+  
   rl_df$library <- str_replace_all(rl_df$Sample, "reduced_trimmed2_trimmed_interleaved2_", "")
   rl_df$library <- gsub("_R1.dedup","",rl_df$library)
   rl_df$library <- recode_fun(rl_df$library)
@@ -758,6 +756,12 @@ RL_plot <- ggplot(rl_to_fill, aes(x=Readlength, y=Count,colour=Read, fill=Read))
                                     colour = "black", 
                                     angle = 0))
 
+pdf(paste0(mydir,"tt.pdf"))
+cov_plot
+insert_size_plot
+straight_GC
+RL_plot
+dev.off()
 ########################################
 ########################################
 
@@ -778,7 +782,7 @@ for (row in 1:nrow(myDF)) {
   me_df <- read.table(file.path(mydir,me_file), quote="\"", comment.char="", header = TRUE)
   
   
-  me_df$Sample <- gsub("reduced_trimmed2_trimmed_interleaved2_", "",me_df$Sample)
+  me_df$Sample <- sub(".*interleaved2_", "",me_df$Sample)
   me_df$Sample <- gsub("_R1.dedup", "",me_df$Sample)
   
   me_df <- me_df %>%
@@ -819,40 +823,39 @@ fwrite(x=ME_data, file=paste0(mydir,"Alfred_ME_data.csv"))
 # plot
 pdf(paste0(mydir,species,'_out.pdf'))
 # plot coverage 
-ggarrange(p1,p2,                                    
-          labels = c("A","B"), 
-          nrow = 2             
-)
-# plot correlation between libs based on their coverage
-corrplot.mixed(M.1, p.mat = res1.1$p,
-               tl.cex = 0.5, tl.col = "black", tl.pos = "lt", # names of libs
-               number.cex = .7, # corr numbers
-               insig = "label_sig", sig.level = c(.001, .01, .05), pch.cex = .8, pch.col = "white") 
-
+insert_size_plot
+dev.off()
 # print lowest coverage regions
 lowest_cov_plot
 # plot correlation between libs based on their coverage
 col <- colorRampPalette(c("#BB4444", "#EE9988", "#FFFFFF", "#77AADD", "#4477AA"))
+# corr numbers (rho)
 corrplot(M, method = "color", col = col(200),
-         type = "upper", order = "hclust", number.cex = .7,
-         addCoef.col = "black", # Add coefficient of correlation
-         tl.col = "black", tl.srt = 90, # Text label color and rotation
-         # Combine with significance
-         p.mat = res1$p, sig.level = 0.01, insig = "blank", 
+         type = "upper", order = "AOE", 
+         tl.col = "black", tl.srt = 90, tl.cex = .8, # Text label color, size, and rotation
          # hide correlation coefficient on the principal diagonal
-         diag = FALSE)
+         diag = FALSE, title = "rho based on coverage \n (from bedgraphs - all contigs)",
+         # Combine with significance
+         p.mat = res$p, sig.level = c(.001, .01, .05), insig = "blank",
+         number.cex = .6, addCoef.col = "black") # Add coefficient of correlation
+# significance symbols
 corrplot(M, method = "color", col = col(200),
-         type = "upper", order = "hclust", 
-         tl.col = "black", tl.srt = 90, # Text label color and rotation
-         # Combine with significance
-         p.mat = res1$p, insig = "label_sig", sig.level = c(.001, .01, .05), pch.cex = .8, pch.col = "white",
+         type = "upper", order = "AOE", 
+         tl.col = "black", tl.srt = 90, tl.cex = .8, # Text label color, size, and rotation
          # hide correlation coefficient on the principal diagonal
-         diag = FALSE)
+         diag = FALSE, title = "pvalues of rho based on coverage \n (from bedgraphs - all contigs)",
+         # Combine with significance
+         p.mat = res$p, sig.level = c(.001, .01, .05), insig = "label_sig", 
+         pch.cex = .8, pch.col = "white")
+#correlation plot
+bed_libs %>% correlate() %>%  
+  network_plot(min_cor = 0.01)
 # plot insert size 
 insert_size_plot 
 # plot GC content bias
-ggarrange(smooth_GC, straight_GC, 
-          nrow = 2)
+# ggarrange(smooth_GC, straight_GC, 
+#           nrow = 2)
+straight_GC
 # plot PHRED scores
 PHRED_plot
 # plot read lengths
@@ -867,7 +870,7 @@ kbl(ME_data, format = "html") %>%
   kable_classic() %>%
   kable_styling(font_size = 15, "striped") %>%
   kableExtra::as_image(file=paste0(mydir,species,"_ME_data.png")) #%>%
-  #save_kable(file = paste0(mydir,species,"_ME_data.pdf"))
+#save_kable(file = paste0(mydir,species,"_ME_data.pdf"))
 
 # stats libs before, after cleaning and after resizing, print pdf: 
 x <- cbind(read_lengths[,1:4],n_reads[,2:4], n_bp[,2:4])
@@ -879,7 +882,7 @@ kbl(x, format = "html") %>%
                      "# reads" = 3,
                      "# bp" = 3)) %>%
   kableExtra::as_image(file=paste0(mydir,species,"_stats.png")) #%>%
-  #save_kable(file = paste0(mydir,species,"_stats.pdf"))
+#save_kable(file = paste0(mydir,species,"_stats.pdf"))
 
 
 # concatenating created pdfs: 
