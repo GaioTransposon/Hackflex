@@ -14,7 +14,7 @@ library(stringr)
 library(corrr)
 library(data.table)
 library(stringr)
-
+library(readxl)
 
 
 # set directories and select samples: 
@@ -28,45 +28,64 @@ phred_dir <- "~/Desktop/MG1655/raw_libs/"
 
 
 # barcode distribution: 
+fastq <- read_delim(file.path(mydir,"all_fastq_headers_clean.tsv"),":", 
+           escape_double = FALSE, col_names = FALSE,
+           trim_ws = TRUE)
+barcodes <- fastq
 
-barcode_count <- read.table(file.path(mydir,"all_fastq_headers_clean.tsv"), quote="\"", comment.char="", header = FALSE)
-head(barcode_count)
-
-
-
-
-barcodes <- barcode_count %>%
-  dplyr::select(V1,V3) 
-
-
+barcodes <- barcodes %>% 
+  dplyr::select(X1,X8) 
 
 head(barcodes)
+NROW(barcodes)
 
+barcodes$count <- 1
+z <- barcodes %>% 
+  group_by(X1,X8) %>%
+  dplyr::summarise(sum=sum(count))
+
+head(z)
 
 # take the original barcode (this is the most frequent one)
-barcodes1 <- barcodes %>%
-  drop.levels() %>%
-  dplyr::mutate(n=n()) %>%
-  group_by(V1,V3) %>%
-  dplyr::summarise(barcode_sum=sum(n)) %>%
-  group_by(V1) %>%
-  slice_max(order_by = barcode_sum,n=1) # change to n>1 if you want the top n most frequent barcode sequences
+z1 <- z %>%
+  group_by(X1) %>%
+  slice_max(order_by = sum,n=1) # change to n>1 if you want the top n most frequent barcode sequences
 
-head(barcodes1)
+z2 <- z1[,2:3]
 
-barcodes1 <- cSplit(barcodes1, "V3", sep = ":")
-barcodes1 <- cSplit(barcodes1, "V3_4", sep = "+")
+z3 <- z2 %>%
+  distinct() %>%
+  dplyr::mutate(i5 = sub("\\+.*", "", X8)) %>%
+  dplyr::mutate(i7 = str_extract(X8, '\\b[^+]+$')) %>%
+  dplyr::select(i5,i7,sum)
 
-barcodes2 <- barcodes1 %>%
-  dplyr::select(V1, barcode_sum, V3_1, V3_4_1, V3_4_2) %>%
-  dplyr::rename(library = V1,
-                barcode_count = barcode_sum,
-                read_direction = V3_1,
-                i5 = V3_4_1,
-                i7 = V3_4_2)
+z3 <- as.data.frame(z3)
+
+
+HF_barcode_i5_list <- as.list(z3$i5)
+HF_barcode_i7_list <- as.list(z3$i7)
+
+
+
+
+
+
+# two waysto spread: 
+spread(z3, i7, sum, fill = 0)
+z3 %>%
+  pivot_wider(., names_from = i5, values_from = sum)
+
+
+
+
+
+
+
+
+
 
 head(barcodes2)
-
+View(barcodes2)
 barcodes3 <- barcodes2 %>%
   dplyr::mutate(G_i5 = str_count(i5, "G"),
                 C_i5 = str_count(i5, "C"),
@@ -80,8 +99,13 @@ barcodes3$oligo <- gsub("GC_","", barcodes3$oligo)
 head(barcodes3)
 NROW(barcodes3)
 
+hist(barcodes2$barcode_count, breaks=10)
+
+sum(barcodes2$barcode_count)
 
 
+NROW(unique(barcodes2$i5))
+NROW(unique(barcodes2$i7))
 
 # PLOT: 
 

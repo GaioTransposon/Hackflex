@@ -12,7 +12,8 @@
 # PART2: mapping
 # PART3: coverage (bedgraphs) and alfred 
 # PART4: barcode extraction
-# PART5: gather useful output
+# PART5: contamination analysis (kraken)
+# PART6: gather useful output
 
 ##########################
 
@@ -80,7 +81,7 @@ for trimmed_library in `ls trimmed*`
 do
 filename_lib=$(basename $trimmed_library)
 lib="${filename_lib%.*}"
-bbduk.sh threads=3 int=t in=$trimmed_library out=trimmed2\_$lib duk=cleaning2\_$lib adapters=/shared/homes/12705859/HACKLEX_LIBS/adapters/merged2_adapters.fa ktrim=r k=21 mink=11 hdist=1 tpe tbo maxgc=0.98 qtrim=rl qtrim=20 entropy=0.5 maq=25
+bbduk.sh threads=3 int=t in=$trimmed_library out=trimmed2\_$lib duk=cleaning2\_$lib adapters=/shared/homes/12705859/HACKLEX_LIBS/adapters/merged2_adapters.fa ktrim=r k=21 mink=11 hdist=1 tpe tbo maxgc=0.98 qtrim=rl qtrim=20 entropy=0.5 minavgquality=0
 done 
 
 
@@ -232,12 +233,9 @@ rm *bedgraph
 for mybam in *positionsort
 do filename=$(basename $mybam)
 N="${filename%.*}"
-genomeCoverageBed -bga -ibam $mybam > $N.bedgraph
+genomeCoverageBed -d -ibam $mybam > $N.bedgraph
 done
 
-# merge bedgraphs of all libs
-rm merged_bedgraphs.txt 
-unionBedGraphs -header -i *bedgraph -names *bedgraph -g $ref_genome.fai -empty > merged_bedgraphs.txt 
 
 # alfred to get stats
 for file in `ls *dedup.bam`
@@ -295,6 +293,25 @@ fi
 
 ################################ PART 5 ################################
 
+# extract unmapped reads
+rm unmapped*
+for library in `ls *dedup.bam`
+do
+filename_lib=$(basename $library)
+lib="${filename_lib%.*}"
+samtools view -f 0x4 $library | awk 'BEGIN{OFS=""}{print ">",$1,"\n",$10,"\n+\n",$11;}' > unmapped_$lib.fastq
+done
+
+# get contamination report 
+rm kraken_report*
+for library in `ls unmapped*fastq`
+do
+filename_lib=$(basename $library)
+lib="${filename_lib%.*}"
+singularity exec -B /shared/homes/s1/ docker://quay.io/biocontainers/kraken2:2.0.8_beta--pl526h6bb024c_0 kraken2 --db /shared/homes/s1/minikraken2_v1_8GB $library --use-names --report kraken_report_$lib
+done
+
+################################ PART 6 ################################
 
 # save all the useful output into a new directory
 mkdir out
@@ -310,7 +327,8 @@ mv reads_stats.tsv out/.
 mv picard* out/.
 mv all_fastq_headers_clean.tsv out/. # barcodes 
 mv qc_*.json.gz out/. # alfred web interactive - input
-mv merged_bedgraphs.txt out/. # bedgraphs report coverage across all the regions of the chromosome(s)
+mv *bedgraph out/. # bedgraphs report coverage across all the regions of the chromosome(s)
+mv kraken_report_* out/.
 
 ########################################################################
 
