@@ -81,7 +81,7 @@ for trimmed_library in `ls trimmed*`
 do
 filename_lib=$(basename $trimmed_library)
 lib="${filename_lib%.*}"
-bbduk.sh threads=3 int=t in=$trimmed_library out=trimmed2\_$lib duk=cleaning2\_$lib adapters=/shared/homes/12705859/HACKLEX_LIBS/adapters/merged2_adapters.fa ktrim=r k=21 mink=11 hdist=1 tpe tbo maxgc=0.98 qtrim=rl qtrim=20 entropy=0.5 minavgquality=0
+bbduk.sh threads=3 int=t in=$trimmed_library out=trimmed2\_$lib adapters=/shared/homes/12705859/HACKLEX_LIBS/adapters/merged2_adapters.fa ktrim=r k=21 mink=11 hdist=1 tpe tbo maxgc=0.98 qtrim=rl qtrim=20 entropy=0.5 minavgquality=0 &> cleaning2\_$lib
 done 
 
 
@@ -254,9 +254,9 @@ filename=$(basename $file)
 N="${filename%.*}"
 echo $file
 zgrep ^GC $file | cut -f 2- > GC_$N.tsv # GC-content (GC)
+zgrep ^BQ $file | cut -f 2- > BQ_$N.tsv # # Mean base quality (BQ).
 zgrep ^RL $file | cut -f 2- > RL_$N.tsv # Read length distribution (RL)
 zgrep ^IS $file | cut -f 2- > IS_$N.tsv # Insert size histogram (IS).
-zgrep ^CO $file | cut -f 2- > CO_$N.tsv # Coverage histogram (CO)
 zgrep ^CM $file | cut -f 2- > CM_$N.tsv # Chromosome mapping statistics (CM)
 zgrep ^MQ $file | cut -f 2- > MQ_$N.tsv # Mapping quality histogram (MQ)
 zgrep ^ME $file | cut -f 2- > ME_$N.tsv # Alignment summary metrics (ME)
@@ -319,9 +319,9 @@ mv flagstat* out/.
 mv GC_* out/.
 mv RL_* out/.
 mv IS_* out/.
-mv CO_* out/.
 mv CM_* out/.
 mv MQ_* out/.
+mv BQ* out/.
 mv ME_* out/.
 mv reads_stats.tsv out/.
 mv picard* out/.
