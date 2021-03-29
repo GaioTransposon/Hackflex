@@ -82,6 +82,3 @@ mv assembly_stats.txt out/.
 
 
 
-
-
-

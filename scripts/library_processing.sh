@@ -256,7 +256,6 @@ echo $file
 zgrep ^GC $file | cut -f 2- > GC_$N.tsv # GC-content (GC)
 zgrep ^BQ $file | cut -f 2- > BQ_$N.tsv # # Mean base quality (BQ).
 zgrep ^RL $file | cut -f 2- > RL_$N.tsv # Read length distribution (RL)
-zgrep ^IS $file | cut -f 2- > IS_$N.tsv # Insert size histogram (IS).
 zgrep ^CM $file | cut -f 2- > CM_$N.tsv # Chromosome mapping statistics (CM)
 zgrep ^MQ $file | cut -f 2- > MQ_$N.tsv # Mapping quality histogram (MQ)
 zgrep ^ME $file | cut -f 2- > ME_$N.tsv # Alignment summary metrics (ME)
@@ -315,10 +314,10 @@ done
 
 # save all the useful output into a new directory
 mkdir out
+mv cleaning2* out/.
 mv flagstat* out/.
 mv GC_* out/.
 mv RL_* out/.
-mv IS_* out/.
 mv CM_* out/.
 mv MQ_* out/.
 mv BQ* out/.
