@@ -22,7 +22,7 @@ library(textshape)
 # set directories and select samples: 
 
 barcode_libs <- "~/Desktop/MG1655/goal_barcode/"
-barcode_dir <- "~/Desktop/MG1655/HF-barcode/"
+barcode_source_data <- "~/Desktop/MG1655/goal_barcode/source_data/"
 phred_dir <- "~/Desktop/MG1655/raw_libs/"
 
 
@@ -30,7 +30,7 @@ phred_dir <- "~/Desktop/MG1655/raw_libs/"
 ########################################
 
 
-demux_clean <- read_csv(paste0(barcode_dir, "demux_clean.tsv"), col_names = FALSE)
+demux_clean <- read_csv(paste0(barcode_source_data, "demux_clean.tsv"), col_names = FALSE)
 demux_clean <- demux_clean[6:677,]
 demux_clean$seq <- rep(seq(1,7), 96)
 
@@ -48,10 +48,7 @@ colnames(counts) <- "counts"
 TOT_BARCODE_COUNTS <- sum(counts$counts)
 
 
-NROW(R2_unpaired_headers)/TOT_BARCODE_COUNTS
-
-
-
+sort(counts$counts)
 a <- counts %>%
   dplyr::summarise(barcodes_combos=n(),
                    Min=min(counts),
@@ -65,15 +62,13 @@ counts_transposed <- as.data.frame(t(a), make.names = TRUE)
 counts_transposed$summary <- rownames(counts_transposed)
 colnames(counts_transposed) <- c("value","summary")
 
-counts_transposed <- counts_transposed %>%
+counts_stats_transposed <- counts_transposed %>%
   dplyr::select(summary, everything())
 
+fwrite(x=counts_stats_transposed, file=paste0(barcode_libs,"barcode_summary.csv"))
 
 
-fwrite(x=counts_transposed, file=paste0(barcode_dir,"barcode_stats.csv"))
-
-
-pdf(paste0(barcode_dir,"_barcode_distribution.pdf"))
+pdf(paste0(barcode_libs,"barcode_distribution.pdf"))
 # Layout to split the screen
 layout(mat = matrix(c(1,2),2,1, byrow=TRUE),  height = c(1,8))
 # Draw the boxplot and the histogram 
@@ -106,9 +101,10 @@ dev.off()
 
 
 # barcodes GC content coverage bias : 
-fastq <- read_delim(file.path(barcode_libs,"all_fastq_headers_clean.tsv"),":", 
+fastq <- read_delim(file.path(barcode_source_data,"all_fastq_headers_clean.tsv"),":", 
            escape_double = FALSE, col_names = FALSE,
            trim_ws = TRUE)
+
 barcodes <- fastq
 
 barcodes <- barcodes %>% 
@@ -127,33 +123,77 @@ head(z)
 # take the original barcode (this is the most frequent one)
 z1 <- z %>%
   group_by(X1) %>%
-  slice_max(order_by = barcode_count,n=1) # change to n>1 if you want the top n most frequent barcode sequences
+  slice_max(order_by = barcode_count,n=1) %>% # change to n>1 if you want the top n most frequent barcode sequences
+  group_by(X1) %>%
+  dplyr::mutate(barcode_count=sum(barcode_count))
 
 head(z1)
 
-z2 <- z1[,1:3] %>%
+z2 <- z1[,2:3] %>%
   distinct() %>%
   dplyr::mutate(i5 = sub("\\+.*", "", X8)) %>%
   dplyr::mutate(i7 = str_extract(X8, '\\b[^+]+$')) %>%
-  dplyr::select(X1,X8,i5,i7,barcode_count) %>%
+  dplyr::select(X8,i5,i7,barcode_count) %>%
   dplyr::mutate(Gs = str_count(X8, "G"),
                 Cs = str_count(X8, "C"),
                 GC_content = ((Gs+Cs) / (str_length(X8)-1))*100) %>%
-  dplyr::select(X1,i5,i7,barcode_count,GC_content)
+  dplyr::select(i5,i7,barcode_count,GC_content)
 z2 <- as.data.frame(z2)
 head(z2)
+
+
+#contamination_rate <- sum(u_summ)*2/sum(z1$barcode_count)*100
 
 true_i5 <- as.list(z2$i5)
 true_i7 <- as.list(z2$i7)
 
-extreme_GC <- z2 %>% dplyr::filter(GC_content<30|GC_content>70)
-NROW(extreme_GC)/NROW(z2)*100
-#it means that 13.54% of all the barcodes have more than 70% or less than 30% GC content
+
+###
+# No barcode contained 3 or more identical bases in a row: 
+stringr::str_count(z2$i7, "AAA+")
+stringr::str_count(z2$i7, "TTT+")
+stringr::str_count(z2$i7, "CCC+")
+stringr::str_count(z2$i7, "GGG+")
+
+stringr::str_count(z2$i5, "AAA+")
+stringr::str_count(z2$i5, "TTT+")
+stringr::str_count(z2$i5, "CCC+")
+stringr::str_count(z2$i5, "GGG+")
+###
+
+distribution_text <- z2 %>%
+  dplyr::summarise(mean=mean(barcode_count),
+                   median=median(barcode_count),
+                   sd=sd(barcode_count)) %>%
+  dplyr::mutate(label=paste0("mean=",round(mean,2),
+                             "\n median=",round(median,2),
+                             "\n sd=",round(sd,2)))
+
+
+
+extreme_GC <- z2 %>% dplyr::filter(GC_content<20|GC_content>80)
+
+GC_text <- z2 %>%
+  dplyr::summarise(mean=mean(GC_content),
+                   median=median(GC_content),
+                sd=sd(GC_content),
+                `<20%`=NROW(which((GC_content<20)==TRUE))/NROW(GC_content)*100,
+                `>80%`=NROW(which((GC_content>80)==TRUE))/NROW(GC_content)*100) %>%
+  dplyr::mutate(label=paste0("mean=",round(mean,2),
+                             "\n median=",round(median,2),
+                             "\n sd=",round(sd,2),
+                             "\n <20%=",paste0(round(`<20%`,2),"%"),
+                             "\n >80%=",paste0(round(`>80%`,2)),"%"))
+
 
 # Pearson coefficient of correlation
-barcodes_GC_pearson <- wtd.cor(z2$GC_content,z2$barcode_count,weight=z2$barcode_count)
-extreme_GC_pearson <- wtd.cor(extreme_GC$GC_content,extreme_GC$barcode_count,weight=extreme_GC$barcode_count)
-
+barcodes_GC_rho <- wtd.cor(z2$GC_content,z2$barcode_count,weight=z2$barcode_count)
+pval <- barcodes_GC_rho[1,4]
+rho <- barcodes_GC_rho[1,1]
+#extreme_GC_pearson <- wtd.cor(extreme_GC$GC_content,extreme_GC$barcode_count,weight=extreme_GC$barcode_count)
+barcodes_GC_rho <- as.data.frame(barcodes_GC_rho) %>%
+  dplyr::mutate(label=paste0("rho=",round(correlation,2),
+                             "\n p-value=",round(p.value,2)))
 
 ########################################
 ########################################
@@ -161,24 +201,41 @@ extreme_GC_pearson <- wtd.cor(extreme_GC$GC_content,extreme_GC$barcode_count,wei
 
 # PLOT: 
 
-pdf(paste0(barcode_dir,"barcodes_distribution&GC_content.pdf"))
+pdf(paste0(barcode_libs,"barcodes_distribution&GC_content.pdf"))
 # barcode distribution: 
 z2 %>%
   dplyr::select(barcode_count) %>%
   distinct() %>%
   ggplot(., aes(x=barcode_count)) + 
   geom_histogram(aes(y=..density..), colour="black", fill="white")+
-  geom_density(alpha=.2, fill="#FF6666")
+  geom_density(alpha=.2, fill="#FF6666") +
+  ggtitle("barcode distribution (only perfect barcode match)") +
+  geom_text(
+    data    = distribution_text,
+    mapping = aes(x = Inf, y = Inf, label = label, hjust=1.0, vjust=1), #vjust=1 hjust=1.0
+    size=3
+  )
 # barcode counts vs barcode GC content
 z2 %>%
   dplyr::select(barcode_count,GC_content) %>%
   distinct() %>%
   ggplot(., aes(x=GC_content,y=barcode_count))+
   geom_point()+
-  stat_smooth(method="lm", se=FALSE) +
-  stat_cor(p.accuracy = 0.001, r.accuracy = 0.01) +
+  #geom_smooth(method="lm", se=FALSE) +
+  #stat_cor(p.accuracy = 0.001, r.accuracy = 0.01, cor.coef.name = "R", method = "pearson") +
   labs(x="barcode GC content (%)",
-       y="barcode count")
+       y="barcode count") +
+  ggtitle("GC content coverage bias (only perfect barcode match) \n with barcode counts as weights") +
+  geom_text(
+    data    = GC_text,
+    mapping = aes(x = 70, y = Inf, label = label, hjust=1.0, vjust=1), #vjust=1 hjust=1.0
+    size=3
+  ) +
+  geom_text(
+    data    = barcodes_GC_rho,
+    mapping = aes(x = 20, y = Inf, label = label, hjust=1.0, vjust=1), #vjust=1 hjust=1.0
+    size=3
+  )
 # barcodes of each library, their count, and their GC content
 z2 %>%
   dplyr::select(barcode_count,GC_content) %>%
@@ -187,7 +244,8 @@ z2 %>%
   ggplot(., aes(x=fct_reorder(lib, GC_content),y=barcode_count, color=GC_content))+ 
   geom_point(alpha=0.8)+
   theme(axis.text.x=element_blank()) +
-  scale_color_gradientn(colours = rainbow(5))
+  scale_color_gradientn(colours = rainbow(5)) +
+  ggtitle("Barcode count vs barcode GC content (perfect barcode match only)")
 # barcode counts - rank sorted 
 z2 %>%
   dplyr::select(barcode_count,GC_content) %>%
@@ -196,7 +254,8 @@ z2 %>%
   ggplot(., aes(x=fct_reorder(lib, barcode_count), y=barcode_count))+
   geom_boxplot()+
   labs(x="Barcodes (rank-sorted)",
-       y="number of reads assigned to barcode")
+       y="number of reads assigned to barcode") +
+  ggtitle("Rank-sorted barcodes and their count (perfect barcode match only)")
 dev.off()
 
 
@@ -210,10 +269,10 @@ dev.off()
 
 
 # list of all sequencing libs from batch 3 
-X20210212_HF_16S_V3 <- read_csv("Desktop/MG1655/HF-barcode/20210212_HF_16S_V3.csv", 
+sequencing_run_barcodes <- read_xlsx(paste0(barcode_source_data,"sequencing_run_barcodes_20210212.xlsx"), 
                                 skip = 19)
 
-x <- X20210212_HF_16S_V3 %>%
+x <- sequencing_run_barcodes %>%
   dplyr::select(Sample_ID,index,index2)
 
 # exclude all that contain the word "barcode" 
@@ -221,10 +280,10 @@ x <- dplyr::filter(x, !grepl("barcode",Sample_ID))
 x$X10 <- paste0(x$index,"+",x$index2)
 
 
-R1_undet_headers <- read_delim(paste0(barcode_dir,"R1_undet_headers"),":", 
+R1_undet_headers <- read_delim(paste0(barcode_source_data,"R1_undet_headers"),":", 
                                escape_double = FALSE, col_names = FALSE,
                                trim_ws = TRUE)
-R2_undet_headers <- read_delim(paste0(barcode_dir,"R2_undet_headers"),":", 
+R2_undet_headers <- read_delim(paste0(barcode_source_data,"R2_undet_headers"),":", 
                                escape_double = FALSE, col_names = FALSE,
                                trim_ws = TRUE)
 
@@ -249,8 +308,6 @@ R1_undet1 <- R1_undet0 %>%
   dplyr::filter(i5 %in% true_i5) %>%
   dplyr::filter(i7 %in% true_i7) 
 NROW(R1_undet1)
-
-
 
 
 # exclude all the barcode combos that ended up in undetermined, that actually derive from other libraries (not all libs were demuxed): 
@@ -308,8 +365,7 @@ for(i in 1:nrow(mat)){
 sum(u_summ)/NROW(fastq)*100
 
 
-
-pdf(paste0(barcode_dir,"barcode_cross_contamination.pdf"))
+pdf(paste0(barcode_libs,"barcode_cross_contamination.pdf"))
 mat <- u_summ
 for(i in 1:nrow(mat)){
   rowI <- mat[i,]
@@ -324,9 +380,9 @@ mat %>%
     i7 = factor(i7, levels = unique(i7))        
   ) %>%
   group_by(i5) %>%
-  ggplot(aes(i5, i7, fill = value)) +
+  ggplot(aes(i5, i7, fill=value)) +
   geom_tile() +
-  scale_fill_gradient(low = "yellow", high = "red", 
+  scale_fill_gradient(low = "gold1", high = "red4",
                       na.value = "white") +
   geom_text(aes(label = round(value, 1)), size=0.8) +
   theme(axis.text.x=element_text(angle=90))+
@@ -344,10 +400,5 @@ mat %>%
     legend.text = element_text(angle = 90,size=5)
   ) 
 dev.off()
-
-
-
-
-
 
 

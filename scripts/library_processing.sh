@@ -216,7 +216,7 @@ done
 
 
 # insert size based on .bam
-rm picard*
+rm picardIS*
 for mybam in `ls *.dedup.bam`
 do filename=$(basename $mybam)
 N="${filename%.*}"
@@ -225,6 +225,20 @@ java -jar /shared/homes/12705859/picard/build/libs/picard.jar CollectInsertSizeM
       O=picardIS_$N.txt \
       H=picardIS_$N.pdf \
       M=0.4
+done
+
+
+# GC bias based on .bam
+rm picardGC*
+for mybam in `ls *.dedup.bam`
+do filename=$(basename $mybam)
+N="${filename%.*}"
+java -jar /shared/homes/12705859/picard/build/libs/picard.jar CollectGcBiasMetrics \
+      I=$mybam \
+      O=picardGC_$N.txt \
+      CHART=picardGC_$N.pdf \
+      S=picardGC_summarymetrics$N.txt \
+      R=$ref_genome
 done
 
 
@@ -253,7 +267,6 @@ do
 filename=$(basename $file)
 N="${filename%.*}"
 echo $file
-zgrep ^GC $file | cut -f 2- > GC_$N.tsv # GC-content (GC)
 zgrep ^BQ $file | cut -f 2- > BQ_$N.tsv # # Mean base quality (BQ).
 zgrep ^RL $file | cut -f 2- > RL_$N.tsv # Read length distribution (RL)
 zgrep ^CM $file | cut -f 2- > CM_$N.tsv # Chromosome mapping statistics (CM)
@@ -316,7 +329,6 @@ done
 mkdir out
 mv cleaning2* out/.
 mv flagstat* out/.
-mv GC_* out/.
 mv RL_* out/.
 mv CM_* out/.
 mv MQ_* out/.

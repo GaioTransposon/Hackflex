@@ -36,7 +36,7 @@ library(kableExtra)
 #                "Ec.SF_1.B2",
 #                "Ec.SF_1_PS.B2",
 #                "Ec.SF_1:50.B2") # all from E. coli
-
+#
 # mydir <- "~/Desktop/MG1655/goal_paeruginosa/"
 # phred_dir <- "~/Desktop/MG1655/raw_libs/"
 # my_subset <- c("Pa.SF_1.B1",
@@ -45,12 +45,12 @@ library(kableExtra)
 #                "Pa.HF_55A.B2",
 #                "Pa.HF_55A72E.B2") # all from P. aeruginosa
 # 
-# mydir <- "~/Desktop/MG1655/goal_saureus/"
-# phred_dir <- "~/Desktop/MG1655/raw_libs/"
-# my_subset <- c("Sa.SF_1.B1",
-#                "Sa.SF_1:50.B1",
-#                "Sa.HF.B2",
-#                "Sa.HF_55A.B2") # all from S. aureus
+mydir <- "~/Desktop/MG1655/goal_saureus/"
+phred_dir <- "~/Desktop/MG1655/raw_libs/"
+my_subset <- c("Sa.SF_1.B1",
+               "Sa.SF_1:50.B1",
+               "Sa.HF.B2",
+               "Sa.HF_55A.B2") # all from S. aureus
 
 ########################################
 
@@ -145,7 +145,12 @@ if (species=="Pa") {  sp <- "Pseudomonas aeruginosa" }
 if (species=="Sa") {  sp <- "Staphylococcus aureus" }
 if (species=="HF") {  sp <- "Hackflex libraries (n=96)" }
 
-
+# add prefix to output files, if the goal of the analysis is to compare HF size selection libs with HF: 
+if (grepl("goal_size_selection", mydir, fixed = FALSE)==TRUE) {
+  goal <- "SizeSel"
+} else {
+  goal <- "all"
+}
 
 ########################################
 ########################################
@@ -193,8 +198,11 @@ x <- cbind(read_lengths[,1:4],n_reads[,2:4], n_bp[,2:4])
 #                      "# reads" = 3,
 #                      "# bp" = 3)) %>%
 #   kableExtra::as_image(file=paste0(mydir,species,"_stats.png")) 
-x[1,] <- c(NA, rep("avg read length",3), rep("# reads",3), rep("# bp",3))
-fwrite(x=x, file=paste0(mydir,paste0(species,"_lib_processing_stats.csv")))
+
+to_paste <- c("", rep("avg read length",3), rep("# reads",3), rep("# bp",3))
+colnames(x) <- paste(to_paste, colnames(x), sep = " ")
+
+fwrite(x=x, file=paste0(mydir,paste0(species,"_",goal,"_lib_processing_stats.csv")))
 
 ########################################
 ########################################
@@ -246,7 +254,7 @@ for (bbduk_file in bbduk_files) {
 
 bbduk_data = do.call(rbind, datalist)
 
-fwrite(x=bbduk_data, file=paste0(mydir,paste0(species,"_bbduk_data_stats.csv")))
+fwrite(x=bbduk_data, file=paste0(mydir,paste0(species,"_",goal,"_bbduk.csv")))
 
 
 ########################################
@@ -549,9 +557,10 @@ insert_size_plot <- ggarrange(insert_size_plot_together, insert_size_plot_facets
 gc_files = list.files(mydir,pattern="GC_qc")
 
 GC_DF <- data.frame(
-  REF_GCcontent = numeric(),
-  LIB_Sample = character(),
-  diff = numeric(),
+  library = character(),
+  Lib_GCcontent = numeric(),
+  Lib_fractionOfReads = numeric(),
+  obs.exp = numeric(),
   rho = numeric(),
   pval = numeric(),
   stringsAsFactors = FALSE
@@ -568,37 +577,45 @@ for (gc_file in gc_files) {
   # read in files
   gc_df <- read.table(file.path(mydir,gc_file), quote="\"", comment.char="", header = TRUE)
   head(gc_df)
+
+  ref <- gc_df[1:102,] %>%
+    dplyr::select(Sample,GCcontent,fractionOfReads) 
+  colnames(ref) <- paste("Ref", colnames(ref), sep = "_")
+  ref <- ref %>%
+    dplyr::mutate(bin=seq(1,102))
+  head(ref)
   
-  # add smallest number above zero (otherwise 0 divided by 0 will give a problem)
-  my_min <- min(gc_df[gc_df$fractionOfReads>0,"fractionOfReads"])
-  # add it to fraction of reads
-  gc_df$fractionOfReads <- (gc_df$fractionOfReads + my_min)
+  lib <- gc_df[103:204,] %>%
+    dplyr::select(Sample,GCcontent,fractionOfReads) 
+  colnames(lib) <- paste("Lib", colnames(lib), sep = "_")
+  lib <- lib %>%
+    dplyr::mutate(bin=seq(1,102))
+  head(lib)
   
-  # separate reference from library stats, prepend prefix
-  ref <- gc_df %>% dplyr::filter(Sample=="Reference") %>% rename_all( ~ paste0("REF_", .x))
-  lib <- gc_df %>% dplyr::filter(!Sample=="Reference") %>% rename_all( ~ paste0("LIB_", .x))
-  
-  # rename the library 
-  lib$LIB_Sample <- paste0(id)
-  
-  # reunite them
-  myDF <- cbind(ref,lib)
-  
-  # compute differnece between fraction of reads expected (reference) and fraction of reads obtained (library)
-  myDF$diff <- myDF$REF_fractionOfReads/myDF$LIB_fractionOfReads
-  
-  # clean the df, rename a col: 
-  myDF <- myDF %>% dplyr::select(REF_GCcontent,LIB_Sample,diff)
-  colnames(myDF)[colnames(myDF) == 'LIB_Sample'] <- 'library'
-  head(myDF)
+  gc_df <- inner_join(ref,lib) %>%
+    dplyr::mutate(obs.exp=Lib_fractionOfReads/Ref_fractionOfReads) %>%
+    filter_all(all_vars(!is.na(.))) # remove NaN (These come from 0/0 where no reads are expected in Reference, and neither are observed)
+
+  # rename the library
+  gc_df <- gc_df %>%
+    dplyr::mutate(Lib_Sample=paste0(id))
+  head(gc_df)
   
   # get correlation between GC content and ratio, using fraction of reads as weight
-  rho <- wtd.cor(myDF$REF_GCcontent,myDF$diff,weight=myDF$LIB_fractionOfReads)
+  rho <- wtd.cor(gc_df$Lib_GCcontent,
+                 gc_df$obs.exp,
+                 weight=gc_df$LIB_fractionOfReads)
   pval <- rho[1,4]
   rho <- rho[1,1]
-  myDF$rho <- rho
-  myDF$pval <- pval
   
+  myDF <- gc_df %>%
+    dplyr::mutate(rho=rho,
+                  pval=pval,
+                  library=Lib_Sample) %>%
+    dplyr::select(library,Lib_GCcontent,Lib_fractionOfReads,obs.exp,rho,pval)
+  
+  head(myDF)
+  head(GC_DF)
   GC_DF <- rbind(GC_DF, myDF)
   
 }
@@ -613,23 +630,27 @@ GC_DF <- reorder_lib_fun(GC_DF)
 
 head(GC_DF)
 
-GC_DF_text <- GC_DF %>% dplyr::select(library,rho,pval) %>% distinct() %>%
+mymax <- max(GC_DF$obs.exp)
+GC_DF_text <- GC_DF %>% dplyr::select(library,rho,pval) %>% 
+  distinct() %>%
   dplyr::arrange(library) %>% # to get the factors order
   dplyr::mutate(label=paste0(library), 
                 label_rho=paste0("rho=",
                                  round(rho,3)),
                 label_pval=paste0("p=",
                                  round(pval,5)),  
-                pos=7.5+seq(1:NROW(.)))
+                pos=max(mymax)-seq(1:NROW(.)))
+
+head(GC_DF)
 
 
 straight_GC <- GC_DF %>% 
   #dplyr::filter(diff!=1) %>% # don't show in plot ratio=1; rhos is already calculated 
-  ggplot(.,aes(x=REF_GCcontent,y=diff,color=library))+
+  ggplot(.,aes(x=Lib_GCcontent,y=obs.exp,color=library))+
   geom_point(alpha=0.3)+
   theme_bw() +
-  xlim(0.1,0.9) +
-  ylim(-2.5,15)+
+  xlim(0,0.9) +
+  #ylim(-2.5,15)+
   stat_smooth(method="lm", se=FALSE, size=0.5) +
   ylab("ratio observed/expected reads") +
   theme(legend.position="none") +
@@ -651,6 +672,111 @@ straight_GC <- GC_DF %>%
 
 ########################################
 ########################################
+
+# GC content - Picard
+
+
+gc_files <- grep(list.files(mydir,pattern="^picardGC_red"), 
+                 pattern='.txt', value=TRUE)
+
+
+GC_DF <- data.frame(
+  GC = numeric(),
+  WINDOWS = numeric(),
+  MEAN_BASE_QUALITY = numeric(),
+  NORMALIZED_COVERAGE = numeric(),
+  library = character(),
+  rho = numeric(),
+  pval = numeric(),
+  stringsAsFactors = FALSE
+)
+
+for (gc_file in gc_files) {
+  
+  gc <- gc_file
+  
+  id <- sub(".*interleaved_", "",gc)
+  id <- gsub(".dedup.txt","",id)
+  id <- recode_fun(id)
+  
+  # read in files
+  gc_df <- read_delim(file.path(mydir,gc_file),
+                      "\t", escape_double = FALSE, trim_ws = TRUE, skip = 6)
+  
+  # rename the library and select cols
+  gc_df <- gc_df %>%
+    dplyr::mutate(library=paste0(id)) %>%
+    dplyr::select(GC,WINDOWS,MEAN_BASE_QUALITY,NORMALIZED_COVERAGE,library) %>%
+    dplyr::filter(NORMALIZED_COVERAGE>0)
+  
+  head(gc_df)
+  
+  # get correlation between GC content and ratio, using fraction of reads as weight
+  rho <- wtd.cor(gc_df$GC,
+                 gc_df$NORMALIZED_COVERAGE,
+                 weight=gc_df$WINDOWS)
+  pval <- rho[1,4]
+  rho <- rho[1,1]
+  
+  myDF <- gc_df %>%
+    dplyr::mutate(rho=rho,
+                  pval=pval) 
+  
+  head(myDF)
+  
+  GC_DF <- rbind(GC_DF, myDF)
+  
+}
+
+
+head(GC_DF)
+
+
+pic2 <- GC_DF
+
+
+mymax <- max(pic2$NORMALIZED_COVERAGE)
+
+pic2_text <- pic2 %>% dplyr::select(library,rho,pval) %>%
+  distinct() %>%
+  dplyr::arrange(library) %>% # to get the factors order
+  dplyr::mutate(label=paste0(library),
+                label_rho=paste0("rho=",
+                                 round(rho,3)),
+                label_pval=paste0("p=",
+                                  round(pval,5)),
+                pos=max(mymax)-seq(1:NROW(.)))
+
+
+scaleFactor <- (median(pic2$NORMALIZED_COVERAGE) / median(pic2$MEAN_BASE_QUALITY))*1.5
+
+
+GC_picard <- pic2 %>%
+  ggplot(., aes(x = GC, y = NORMALIZED_COVERAGE)) + 
+  geom_point(mapping = aes(colour=WINDOWS), alpha=0.5,size=1.5, shape=1) + #shape=1, stat = "identity"
+  scale_color_gradientn(colours = rev(rainbow(5))) +
+  stat_smooth(method="glm", size=0.5) +
+  geom_line(mapping = aes(x = GC, y = MEAN_BASE_QUALITY*scaleFactor), size = 0.3, color = "green") +
+  scale_y_continuous(name = "Fraction of normalized coverage", limits = c(0,2),
+                     sec.axis = sec_axis(~./scaleFactor, name = "Mean base quality")) + 
+  theme(
+    axis.title.y = element_text(color = "black"),
+    axis.title.y.right = element_text(color = "green")) +
+  facet_grid(rows = vars(library)) +
+  geom_text(
+    data    = pic2_text,
+    mapping = aes(x = 65, y = Inf, label = label_rho, hjust=0, vjust=1), #vjust=1 hjust=1.0
+    size=3
+  ) +
+  geom_text(
+    data    = pic2_text,
+    mapping = aes(x = 85, y = Inf, label = label_pval, hjust=0, vjust=1), #vjust=1 hjust=1.0
+    size=3
+  ) 
+
+########################################
+########################################
+
 
 # PHRED scores 
 
@@ -738,7 +864,7 @@ phred_data_stats <- phred_data %>%
   )
 
 
-fwrite(x=phred_data_stats, file=paste0(mydir,paste0(species,"_phred_data_stats.csv")))
+fwrite(x=phred_data_stats, file=paste0(mydir,paste0(species,"_",goal,"_phred.csv")))
 
 ########################################
 ########################################
@@ -790,7 +916,7 @@ bq_data_stats <- BQ_data %>%
                    bp_count=n())
 
 
-fwrite(x=bq_data_stats, file=paste0(mydir,paste0(species,"_base_quality_data_stats.csv")))
+fwrite(x=bq_data_stats, file=paste0(mydir,paste0(species,"_",goal,"_base_quality.csv")))
 
 ########################################
 ########################################
@@ -920,7 +1046,7 @@ rownames(ME_data) <- NULL
 
 
 # Save as Table : 
-fwrite(x=ME_data, file=paste0(mydir,paste0(species,"_ALFRED_stats.csv")))
+fwrite(x=ME_data, file=paste0(mydir,paste0(species,"_",goal,"_mapping.csv")))
 
 ########################################
 ########################################
@@ -990,7 +1116,7 @@ df_to_fill_kraken$library <- as.factor(df_to_fill_kraken$library)
 df_to_fill_kraken <- reorder_lib_fun(df_to_fill_kraken)
 
 # Save as Table : 
-fwrite(x=df_to_fill_kraken, file=paste0(mydir,species,"_kraken_contamination.csv"))
+fwrite(x=df_to_fill_kraken, file=paste0(mydir,species,"_",goal,"_kraken.csv"))
 
 
 ########################################
@@ -1020,7 +1146,7 @@ if (grepl("size_selection", mydir, fixed = TRUE)==TRUE) {
     dplyr::select(library, everything())
   
   # Save as Table : 
-  fwrite(x=assembly_stats, file=paste0(mydir,species,"_assembly_stats.csv"))
+  fwrite(x=assembly_stats, file=paste0(mydir,species,"_",goal,"_assembly.csv"))
   
 }
 
@@ -1032,7 +1158,7 @@ if (grepl("size_selection", mydir, fixed = TRUE)==TRUE) {
 
 
 # plot
-pdf(paste0(mydir,species,'_out.pdf'))
+pdf(paste0(mydir,species,"_",goal,'_out.pdf'))
 # plot coverage 
 cov_plot
 # print lowest coverage regions
@@ -1064,6 +1190,7 @@ insert_size_plot
 # ggarrange(smooth_GC, straight_GC, 
 #           nrow = 2)
 straight_GC
+GC_picard
 # plot PHRED scores
 PHRED_plot
 # plot read lengths
