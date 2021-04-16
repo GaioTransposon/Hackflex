@@ -11,7 +11,7 @@
 # PART1: cleaning
 # PART2: mapping
 # PART3: coverage (bedgraphs) and alfred 
-# PART4: barcode extraction
+# PART4: barcode extraction (only for goal_barcode libs)
 # PART5: contamination analysis (kraken)
 # PART6: gather useful output
 
@@ -238,6 +238,18 @@ java -jar /shared/homes/12705859/picard/build/libs/picard.jar CollectGcBiasMetri
       O=picardGC_$N.txt \
       CHART=picardGC_$N.pdf \
       S=picardGC_summarymetrics$N.txt \
+      R=$ref_genome
+done
+
+
+# Coverage based on .bam
+rm picardCO*
+for mybam in `ls *.dedup.bam`
+do filename=$(basename $mybam)
+N="${filename%.*}"
+java -jar /shared/homes/12705859/picard/build/libs/picard.jar CollectWgsMetrics \
+      I=$mybam \
+      O=picardCO_$N.txt \
       R=$ref_genome
 done
 

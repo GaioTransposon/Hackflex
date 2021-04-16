@@ -8,8 +8,9 @@
 ##########################
 
 #!/bin/bash
-#PBS -q i3q
-#PBS -l walltime=72:00:00
+#PBS -l ncpus=10
+#PBS -l walltime=10:00:00
+#PBS -l mem=20g
 #PBS -N run_shovill
 #PBS -M daniela.gaio@student.uts.edu.au
 

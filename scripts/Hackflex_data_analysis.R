@@ -18,6 +18,7 @@ library(grid)
 library(stringr)
 library(corrplot)
 library(kableExtra)
+library(Hmisc)
 
 
 # args = commandArgs(trailingOnly=TRUE)
@@ -37,20 +38,20 @@ library(kableExtra)
 #                "Ec.SF_1_PS.B2",
 #                "Ec.SF_1:50.B2") # all from E. coli
 #
-# mydir <- "~/Desktop/MG1655/goal_paeruginosa/"
-# phred_dir <- "~/Desktop/MG1655/raw_libs/"
-# my_subset <- c("Pa.SF_1.B1",
-#                "Pa.SF_1:50.B1",
-#                "Pa.HF.B2",
-#                "Pa.HF_55A.B2",
-#                "Pa.HF_55A72E.B2") # all from P. aeruginosa
-# 
-mydir <- "~/Desktop/MG1655/goal_saureus/"
+mydir <- "~/Desktop/MG1655/goal_paeruginosa/"
 phred_dir <- "~/Desktop/MG1655/raw_libs/"
-my_subset <- c("Sa.SF_1.B1",
-               "Sa.SF_1:50.B1",
-               "Sa.HF.B2",
-               "Sa.HF_55A.B2") # all from S. aureus
+my_subset <- c("Pa.SF_1.B1",
+               "Pa.SF_1:50.B1",
+               "Pa.HF.B2",
+               "Pa.HF_55A.B2",
+               "Pa.HF_55A72E.B2") # all from P. aeruginosa
+# 
+# mydir <- "~/Desktop/MG1655/goal_saureus/"
+# phred_dir <- "~/Desktop/MG1655/raw_libs/"
+# my_subset <- c("Sa.SF_1.B1",
+#                "Sa.SF_1:50.B1",
+#                "Sa.HF.B2",
+#                "Sa.HF_55A.B2") # all from S. aureus
 
 ########################################
 
@@ -151,6 +152,99 @@ if (grepl("goal_size_selection", mydir, fixed = FALSE)==TRUE) {
 } else {
   goal <- "all"
 }
+
+########################################
+########################################
+
+
+# PHRED scores 
+
+PHRED_files = list.files(phred_dir,pattern=".csv")
+
+datalist = list()
+for (PHRED_file in PHRED_files) {
+  
+  # open file contaning all the PHRED scores:
+  PHRED_df <- read_csv(file.path(phred_dir,PHRED_file))
+  head(PHRED_df)
+  
+  PHRED_df$library <- gsub("_001","",PHRED_df$library) # to remove (from barcode libs)
+  
+  # get last two chars = read direction
+  PHRED_df$read <- str_sub(PHRED_df$library, -2, -1)
+  
+  # remove everything from library string after first underscore: 
+  PHRED_df$library <- gsub("\\_.*","",PHRED_df$library)
+  
+  # re-order libs (if this is NOT a HF-barcode libs)
+  if (str_sub(unique(PHRED_df$library), 1,10) != "HF-barcode") {
+    
+    # subset
+    PHRED_df <- PHRED_df %>% 
+      dplyr::mutate(library=as.factor(recode_fun(library))) %>%
+      dplyr::filter(library %in% my_subset) %>%
+      drop.levels()
+    
+    PHRED_df$library <- as.factor(PHRED_df$library)
+    PHRED_df <- reorder_lib_fun(PHRED_df)
+    
+  }
+  
+  else {
+    
+    # subset
+    PHRED_df <- PHRED_df %>%
+      dplyr::filter(library %in% my_subset) %>%
+      drop.levels()
+    
+  }
+  
+  datalist[[PHRED_file]] <- PHRED_df # add it to your list
+  
+}
+
+
+phred_data = do.call(rbind, datalist)
+
+PHRED_plot <- phred_data %>% 
+  ggplot(.,
+         aes(x=read_position, y=PHRED_means, colour=library, shape = read,
+             group=interaction(library, read))) + 
+  geom_point(alpha=0.8, size=0.8) + 
+  geom_line(size=0.1)+
+  xlab("read position (bp)") +
+  ylab("average PHRED score") +
+  theme_bw() +
+  scale_x_continuous(breaks = c(0,50,100,150,200,250,300), lim = c(0, 300)) +
+  scale_y_continuous(breaks = c(26,28,30,32,34,36,38), lim = c(25, 38))+
+  theme(panel.border = element_blank(),
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        axis.line = element_line(colour = "black"),
+        legend.position="right",
+        legend.title = element_blank(),
+        axis.text=element_text(size=14),
+        axis.title=element_text(size=18)) 
+if (NROW(unique(phred_data$library))>10) {
+  PHRED_plot <- PHRED_plot + 
+    theme(legend.position="none") +
+    ggtitle("HF barcode libraries")
+}
+
+
+head(phred_data)
+
+phred_data_stats <- phred_data %>% 
+  group_by(library) %>%
+  dplyr::summarise(
+    bp_count = n(),
+    PHRED_mean = mean(PHRED_means, na.rm = TRUE),
+    PHRED_sd = sd(PHRED_means, na.rm = TRUE),
+    PHRED_variance = var(PHRED_means, na.rm = TRUE)
+  ) %>%
+  arrange(desc(PHRED_mean))
+
+fwrite(x=phred_data_stats, file=paste0(mydir,paste0(species,"_",goal,"_phred.csv")))
 
 ########################################
 ########################################
@@ -262,202 +356,10 @@ fwrite(x=bbduk_data, file=paste0(mydir,paste0(species,"_",goal,"_bbduk.csv")))
 
 
 
-# Coverage:
-
-bed_files <- grep(list.files(mydir), 
-                  pattern='.bedgraph', value=TRUE)
-
-
-# construct an empty dataframe to build on 
-df_to_fill_bed <- data.frame(
-  contig = character(),
-  position = numeric(),
-  coverage = numeric(),
-  library = character(),
-  stringsAsFactors = FALSE
-)
-
-
-
-for (bed_file in bed_files) {
-  
-  bed <-read_delim(file.path(mydir,bed_file), 
-                   "\t", escape_double = FALSE, col_names = FALSE, trim_ws = TRUE)
-  
-  
-  # clean lib names
-  id <- sub(".*interleaved_", "", bed_file)
-  id <- sub(".bedgraph", "", id)
-  id <- recode_fun(id)
-  bed$library=paste0(as.character(id))
-  
-  colnames(bed) <- c("contig","position","coverage","library")
-  
-  df_to_fill_bed <- rbind(df_to_fill_bed,bed)
-  
-}
-
-
-# subset
-df_to_fill_bed <- df_to_fill_bed %>%
-  dplyr::filter(library %in% my_subset) 
-# re-order libs
-df_to_fill_bed$library <- as.factor(df_to_fill_bed$library)
-df_to_fill_bed <- reorder_lib_fun(df_to_fill_bed)
-
-
-# keep contigs larger than 1Mbp ; needs to be done for P. aeruginosa only as the assembly is made out of 46 contigs
-if (species=="Pa") {  
-  
-  # if P. aeruginosa....
-  df_to_fill_bed$contig_n <- str_sub(df_to_fill_bed$contig, -2, -1)
-  df_to_fill_bed$contig_n <- gsub("_","",df_to_fill_bed$contig_n)
-  df_to_fill_bed$contig_n <- as.numeric(df_to_fill_bed$contig_n)
-  keep_contigs <- df_to_fill_bed %>%
-    group_by(contig_n) %>%
-    dplyr::summarize(max=max(position)) %>%
-    dplyr::filter(max>=100000) %>%
-    dplyr::select(contig_n) %>%
-    distinct()
-  df_to_fill_bed <- df_to_fill_bed %>%
-    dplyr::filter(contig_n %in% keep_contigs$contig_n)
-  
-}
-
-
-text <- df_to_fill_bed %>%
-  group_by(library) %>% 
-  dplyr::mutate(mean=mean(coverage),
-                sd=sd(coverage),
-                zeros=NROW(which(coverage==0))) %>%
-  dplyr::select(library,mean,sd,zeros) %>%
-  distinct() %>%
-  dplyr::mutate(label=paste0("mean=",round(mean,2),
-                             "\n sd=",round(sd,2),
-                             "\n zero=", zeros))
-
-p1 <- ggplot(df_to_fill_bed, aes(x=coverage, color=library)) +
-  geom_density(alpha=0.01) +
-  theme(legend.position="top",
-        legend.title = element_blank())+
-  xlim(0,100) +
-  labs(x="coverage per site",
-       y="Frequency") +
-  theme_bw()+
-  theme(legend.position="none")
-
-
-p2 <- df_to_fill_bed %>%
-  dplyr::filter(coverage < 4) %>%
-  ggplot(., aes(x=coverage, color=library)) +
-  geom_histogram(fill="white", alpha=0.5,
-                 position="identity",
-                 binwidth=0.5)+
-  facet_grid(rows = vars(library)) +
-  theme(legend.position="top",
-        legend.title = element_blank())+
-  xlim(-0.5,5.5) +
-  labs(x="coverage per site",
-       y="Frequency") +
-  theme_bw()+
-  theme(legend.position="none",
-        strip.text.y = element_text(size = 7, 
-                                    colour = "black", 
-                                    angle = 0)) +
-  geom_text(
-    data    = text,
-    mapping = aes(x = Inf, y = Inf, label = label, hjust=1.0, vjust=1), #vjust=1 hjust=1.0
-    size=3
-  )
-
-
-# final cov plot
-cov_plot <- ggarrange(p1, p2, 
-                      ncol=2, nrow=1, common.legend = TRUE,
-                      labels=c("A","B"))
-
-
-########################################
-
-# display correlation by coverage:
-
-bed_corr <- df_to_fill_bed
-head(bed_corr)
-
-bed_corr <- bed_corr %>%
-  dplyr::select(contig,position,library,coverage) %>%
-  pivot_wider(names_from=library, values_from=coverage, values_fill = 0)
-
-tail(bed_corr)
-
-bed_corr_libs <- bed_corr[,3:ncol(bed_corr)]
-
-
-# compute correlation between libs based on their coverage (all contigs)
-res <- cor.mtest(bed_corr_libs, conf.level = .95)
-M <- cor(bed_corr_libs, use = "pairwise.complete.obs", method = "pearson")
-
-M
-
-
-########################################
-
-# display top largest contigs' lowest coverage areas 
-
-
-# keep n largest contigs
-if (species=="Pa") {  
-  
-  keep_largest_contigs <- df_to_fill_bed %>%
-    group_by(contig_n) %>%
-    dplyr::summarize(max=max(position)) %>%
-    dplyr::filter(max>=500000) %>%
-    dplyr::select(contig_n) %>%
-    distinct()
-  df_to_fill_bed <- df_to_fill_bed %>%
-    dplyr::filter(contig_n %in% keep_largest_contigs$contig_n)
-  
-}
-
-
-mycolors<- c('#999999', # grey
-             '#E69F00', # orange
-             '#56B4E9', # blue
-             "#FF3300", # red
-             "#333399", # purple
-             "#33CC33", # green
-             "#FFFF00") # yellow
-
-myshapes<- c(0, 1, 8, 9, 15, 17, 19)
-
-lowest_cov_plot <- df_to_fill_bed %>%
-  dplyr::filter(coverage < 10) %>%
-  ggplot(., aes(x=position,y=coverage,group=library)) +
-  geom_point(aes(shape=library, color=library), size=1)+
-  scale_shape_manual(values=myshapes)+
-  scale_color_manual(values=mycolors)+
-  #facet_grid(rows = vars(contig)) +
-  #facet_grid(rows = contig, scales="free_x") +
-  facet_grid(library~contig) +
-  theme_bw()+
-  theme(axis.text.x=element_text(size=6, angle=90),
-        strip.text.y = element_text(size = 8, 
-                                    colour = "black", 
-                                    angle = 0),
-        legend.position="right")+
-  labs(x="Genomic position (bp)",
-       y="Coverage", 
-       title = "Lowest coverage regions (4 largest contigs)")
-
-
-
-########################################
-########################################
-
 # Insert size: 
 
 
-IS_files <- grep(list.files(mydir,pattern="^picard"), 
+IS_files <- grep(list.files(mydir,pattern="^picardIS"), 
                  pattern='.txt', value=TRUE)
 
 
@@ -548,127 +450,129 @@ insert_size_plot <- ggarrange(insert_size_plot_together, insert_size_plot_facets
                               ncol=2, nrow=1, common.legend = TRUE,
                               labels=c("A","B"))
 
+
+
 ########################################
 ########################################
 
 
-# GC content: 
-
-gc_files = list.files(mydir,pattern="GC_qc")
-
-GC_DF <- data.frame(
-  library = character(),
-  Lib_GCcontent = numeric(),
-  Lib_fractionOfReads = numeric(),
-  obs.exp = numeric(),
-  rho = numeric(),
-  pval = numeric(),
-  stringsAsFactors = FALSE
-)
-
-for (gc_file in gc_files) {
-  
-  gc <- gc_file
-  
-  id <- sub(".*interleaved_", "",gc)
-  id <- gsub(".dedup.tsv.tsv","",id)
-  id <- recode_fun(id)
-  
-  # read in files
-  gc_df <- read.table(file.path(mydir,gc_file), quote="\"", comment.char="", header = TRUE)
-  head(gc_df)
-
-  ref <- gc_df[1:102,] %>%
-    dplyr::select(Sample,GCcontent,fractionOfReads) 
-  colnames(ref) <- paste("Ref", colnames(ref), sep = "_")
-  ref <- ref %>%
-    dplyr::mutate(bin=seq(1,102))
-  head(ref)
-  
-  lib <- gc_df[103:204,] %>%
-    dplyr::select(Sample,GCcontent,fractionOfReads) 
-  colnames(lib) <- paste("Lib", colnames(lib), sep = "_")
-  lib <- lib %>%
-    dplyr::mutate(bin=seq(1,102))
-  head(lib)
-  
-  gc_df <- inner_join(ref,lib) %>%
-    dplyr::mutate(obs.exp=Lib_fractionOfReads/Ref_fractionOfReads) %>%
-    filter_all(all_vars(!is.na(.))) # remove NaN (These come from 0/0 where no reads are expected in Reference, and neither are observed)
-
-  # rename the library
-  gc_df <- gc_df %>%
-    dplyr::mutate(Lib_Sample=paste0(id))
-  head(gc_df)
-  
-  # get correlation between GC content and ratio, using fraction of reads as weight
-  rho <- wtd.cor(gc_df$Lib_GCcontent,
-                 gc_df$obs.exp,
-                 weight=gc_df$LIB_fractionOfReads)
-  pval <- rho[1,4]
-  rho <- rho[1,1]
-  
-  myDF <- gc_df %>%
-    dplyr::mutate(rho=rho,
-                  pval=pval,
-                  library=Lib_Sample) %>%
-    dplyr::select(library,Lib_GCcontent,Lib_fractionOfReads,obs.exp,rho,pval)
-  
-  head(myDF)
-  head(GC_DF)
-  GC_DF <- rbind(GC_DF, myDF)
-  
-}
-
-
-# subset
-GC_DF <- GC_DF %>% dplyr::filter(library %in% my_subset)
-
-# re-order libs
-GC_DF$library <- as.factor(GC_DF$library)
-GC_DF <- reorder_lib_fun(GC_DF)
-
-head(GC_DF)
-
-mymax <- max(GC_DF$obs.exp)
-GC_DF_text <- GC_DF %>% dplyr::select(library,rho,pval) %>% 
-  distinct() %>%
-  dplyr::arrange(library) %>% # to get the factors order
-  dplyr::mutate(label=paste0(library), 
-                label_rho=paste0("rho=",
-                                 round(rho,3)),
-                label_pval=paste0("p=",
-                                 round(pval,5)),  
-                pos=max(mymax)-seq(1:NROW(.)))
-
-head(GC_DF)
-
-
-straight_GC <- GC_DF %>% 
-  #dplyr::filter(diff!=1) %>% # don't show in plot ratio=1; rhos is already calculated 
-  ggplot(.,aes(x=Lib_GCcontent,y=obs.exp,color=library))+
-  geom_point(alpha=0.3)+
-  theme_bw() +
-  xlim(0,0.9) +
-  #ylim(-2.5,15)+
-  stat_smooth(method="lm", se=FALSE, size=0.5) +
-  ylab("ratio observed/expected reads") +
-  theme(legend.position="none") +
-  geom_text(
-    data    = GC_DF_text,
-    mapping = aes(x = 0.45, y = pos, label = label, hjust=0, vjust=1), #vjust=1 hjust=1.0
-    size=3
-  ) +
-  geom_text(
-    data    = GC_DF_text,
-    mapping = aes(x = 0.65, y = pos, label = label_rho, hjust=0, vjust=1), #vjust=1 hjust=1.0
-    size=3
-  ) +
-  geom_text(
-    data    = GC_DF_text,
-    mapping = aes(x = 0.75, y = pos, label = label_pval, hjust=0, vjust=1), #vjust=1 hjust=1.0
-    size=3
-  )
+# # GC content: 
+# 
+# gc_files = list.files(mydir,pattern="GC_qc")
+# 
+# GC_DF <- data.frame(
+#   library = character(),
+#   Lib_GCcontent = numeric(),
+#   Lib_fractionOfReads = numeric(),
+#   obs.exp = numeric(),
+#   rho = numeric(),
+#   pval = numeric(),
+#   stringsAsFactors = FALSE
+# )
+# 
+# for (gc_file in gc_files) {
+#   
+#   gc <- gc_file
+#   
+#   id <- sub(".*interleaved_", "",gc)
+#   id <- gsub(".dedup.tsv.tsv","",id)
+#   id <- recode_fun(id)
+#   
+#   # read in files
+#   gc_df <- read.table(file.path(mydir,gc_file), quote="\"", comment.char="", header = TRUE)
+#   head(gc_df)
+# 
+#   ref <- gc_df[1:102,] %>%
+#     dplyr::select(Sample,GCcontent,fractionOfReads) 
+#   colnames(ref) <- paste("Ref", colnames(ref), sep = "_")
+#   ref <- ref %>%
+#     dplyr::mutate(bin=seq(1,102))
+#   head(ref)
+#   
+#   lib <- gc_df[103:204,] %>%
+#     dplyr::select(Sample,GCcontent,fractionOfReads) 
+#   colnames(lib) <- paste("Lib", colnames(lib), sep = "_")
+#   lib <- lib %>%
+#     dplyr::mutate(bin=seq(1,102))
+#   head(lib)
+#   
+#   gc_df <- inner_join(ref,lib) %>%
+#     dplyr::mutate(obs.exp=Lib_fractionOfReads/Ref_fractionOfReads) %>%
+#     filter_all(all_vars(!is.na(.))) # remove NaN (These come from 0/0 where no reads are expected in Reference, and neither are observed)
+# 
+#   # rename the library
+#   gc_df <- gc_df %>%
+#     dplyr::mutate(Lib_Sample=paste0(id))
+#   head(gc_df)
+#   
+#   # get correlation between GC content and ratio, using fraction of reads as weight
+#   rho <- wtd.cor(gc_df$Lib_GCcontent,
+#                  gc_df$obs.exp,
+#                  weight=gc_df$LIB_fractionOfReads)
+#   pval <- rho[1,4]
+#   rho <- rho[1,1]
+#   
+#   myDF <- gc_df %>%
+#     dplyr::mutate(rho=rho,
+#                   pval=pval,
+#                   library=Lib_Sample) %>%
+#     dplyr::select(library,Lib_GCcontent,Lib_fractionOfReads,obs.exp,rho,pval)
+#   
+#   head(myDF)
+#   head(GC_DF)
+#   GC_DF <- rbind(GC_DF, myDF)
+#   
+# }
+# 
+# 
+# # subset
+# GC_DF <- GC_DF %>% dplyr::filter(library %in% my_subset)
+# 
+# # re-order libs
+# GC_DF$library <- as.factor(GC_DF$library)
+# GC_DF <- reorder_lib_fun(GC_DF)
+# 
+# head(GC_DF)
+# 
+# mymax <- max(GC_DF$obs.exp)
+# GC_DF_text <- GC_DF %>% dplyr::select(library,rho,pval) %>% 
+#   distinct() %>%
+#   dplyr::arrange(library) %>% # to get the factors order
+#   dplyr::mutate(label=paste0(library), 
+#                 label_rho=paste0("rho=",
+#                                  round(rho,3)),
+#                 label_pval=paste0("p=",
+#                                  round(pval,5)),  
+#                 pos=max(mymax)-seq(1:NROW(.)))
+# 
+# head(GC_DF)
+# 
+# 
+# straight_GC <- GC_DF %>% 
+#   #dplyr::filter(diff!=1) %>% # don't show in plot ratio=1; rhos is already calculated 
+#   ggplot(.,aes(x=Lib_GCcontent,y=obs.exp,color=library))+
+#   geom_point(alpha=0.3)+
+#   theme_bw() +
+#   xlim(0,0.9) +
+#   #ylim(-2.5,15)+
+#   stat_smooth(method="lm", se=FALSE, size=0.5) +
+#   ylab("ratio observed/expected reads") +
+#   theme(legend.position="none") +
+#   geom_text(
+#     data    = GC_DF_text,
+#     mapping = aes(x = 0.45, y = pos, label = label, hjust=0, vjust=1), #vjust=1 hjust=1.0
+#     size=3
+#   ) +
+#   geom_text(
+#     data    = GC_DF_text,
+#     mapping = aes(x = 0.65, y = pos, label = label_rho, hjust=0, vjust=1), #vjust=1 hjust=1.0
+#     size=3
+#   ) +
+#   geom_text(
+#     data    = GC_DF_text,
+#     mapping = aes(x = 0.75, y = pos, label = label_pval, hjust=0, vjust=1), #vjust=1 hjust=1.0
+#     size=3
+#   )
 
 ########################################
 ########################################
@@ -741,36 +645,40 @@ pic2_text <- pic2 %>% dplyr::select(library,rho,pval) %>%
   distinct() %>%
   dplyr::arrange(library) %>% # to get the factors order
   dplyr::mutate(label=paste0(library),
-                label_rho=paste0("rho=",
+                label_rho=paste0("R=",
                                  round(rho,3)),
                 label_pval=paste0("p=",
-                                  round(pval,5)),
-                pos=max(mymax)-seq(1:NROW(.)))
+                                  round(pval,3)))
+                #pos=max(mymax)-seq(1:NROW(.)))
 
-
-scaleFactor <- (median(pic2$NORMALIZED_COVERAGE) / median(pic2$MEAN_BASE_QUALITY))*1.5
-
-
+#scaleFactor <- (median(pic2$NORMALIZED_COVERAGE) / median(pic2$MEAN_BASE_QUALITY))*1.5
 GC_picard <- pic2 %>%
   ggplot(., aes(x = GC, y = NORMALIZED_COVERAGE)) + 
-  geom_point(mapping = aes(colour=WINDOWS), alpha=0.5,size=1.5, shape=1) + #shape=1, stat = "identity"
+  geom_point(mapping = aes(colour=WINDOWS), alpha=0.5,size=2, shape=1) + #shape=1, stat = "identity"
   scale_color_gradientn(colours = rev(rainbow(5))) +
-  stat_smooth(method="glm", size=0.5) +
-  geom_line(mapping = aes(x = GC, y = MEAN_BASE_QUALITY*scaleFactor), size = 0.3, color = "green") +
-  scale_y_continuous(name = "Fraction of normalized coverage", limits = c(0,2),
-                     sec.axis = sec_axis(~./scaleFactor, name = "Mean base quality")) + 
+  stat_smooth(size=0.3, method = "lm", colour="black", aes(weight= WINDOWS)) +
+  #geom_line(mapping = aes(x = GC, y = MEAN_BASE_QUALITY*scaleFactor), size = 0.3, color = "green") +
+  # scale_y_continuous(name = "Fraction of normalized coverage", limits = c(0,2),
+  #                    sec.axis = sec_axis(~./scaleFactor, name = "Mean base quality")) + 
+  ylim(-2,2)+
+  xlim(0,90)+
   theme(
-    axis.title.y = element_text(color = "black"),
-    axis.title.y.right = element_text(color = "green")) +
+    #axis.title.y.right = element_text(color = "green"),
+    axis.title.y = element_text(color = "black")) +
   facet_grid(rows = vars(library)) +
   geom_text(
     data    = pic2_text,
-    mapping = aes(x = 65, y = Inf, label = label_rho, hjust=0, vjust=1), #vjust=1 hjust=1.0
+    mapping = aes(x = 60, y = Inf, label="R=", fontface=3, hjust=0, vjust=1), #vjust=1 hjust=1.0
     size=3
   ) +
   geom_text(
     data    = pic2_text,
-    mapping = aes(x = 85, y = Inf, label = label_pval, hjust=0, vjust=1), #vjust=1 hjust=1.0
+    mapping = aes(x = 64, y = Inf, label=round(rho,3), hjust=0, vjust=1), #vjust=1 hjust=1.0
+    size=3
+  ) + 
+  geom_text(
+    data    = pic2_text,
+    mapping = aes(x = 75, y = Inf, label = label_pval, hjust=0, vjust=1), #vjust=1 hjust=1.0
     size=3
   ) 
 
@@ -778,93 +686,214 @@ GC_picard <- pic2 %>%
 ########################################
 
 
-# PHRED scores 
 
-PHRED_files = list.files(phred_dir,pattern=".csv")
 
-datalist = list()
-for (PHRED_file in PHRED_files) {
+# Coverage:
+
+bed_files <- grep(list.files(mydir), 
+                  pattern='.bedgraph', value=TRUE)
+
+
+# construct an empty dataframe to build on 
+df_to_fill_bed <- data.frame(
+  contig = character(),
+  position = numeric(),
+  coverage = numeric(),
+  library = character(),
+  stringsAsFactors = FALSE
+)
+
+
+
+for (bed_file in bed_files) {
   
-  # open file contaning all the PHRED scores:
-  PHRED_df <- read_csv(file.path(phred_dir,PHRED_file))
-  head(PHRED_df)
+  bed <-read_delim(file.path(mydir,bed_file), 
+                   "\t", escape_double = FALSE, col_names = FALSE, trim_ws = TRUE)
   
-  PHRED_df$library <- gsub("_001","",PHRED_df$library) # to remove (from barcode libs)
   
-  # get last two chars = read direction
-  PHRED_df$read <- str_sub(PHRED_df$library, -2, -1)
+  # clean lib names
+  id <- sub(".*interleaved_", "", bed_file)
+  id <- sub(".bedgraph", "", id)
+  id <- recode_fun(id)
+  bed$library=paste0(as.character(id))
   
-  # remove everything from library string after first underscore: 
-  PHRED_df$library <- gsub("\\_.*","",PHRED_df$library)
+  colnames(bed) <- c("contig","position","coverage","library")
   
-  # re-order libs (if this is NOT a HF-barcode libs)
-  if (str_sub(unique(PHRED_df$library), 1,10) != "HF-barcode") {
-    
-    # subset
-    PHRED_df <- PHRED_df %>% 
-      dplyr::mutate(library=as.factor(recode_fun(library))) %>%
-      dplyr::filter(library %in% my_subset) %>%
-      drop.levels()
-    
-    PHRED_df$library <- as.factor(PHRED_df$library)
-    PHRED_df <- reorder_lib_fun(PHRED_df)
-    
-  }
-  
-  else {
-    
-    # subset
-    PHRED_df <- PHRED_df %>%
-      dplyr::filter(library %in% my_subset) %>%
-      drop.levels()
-    
-  }
-  
-  datalist[[PHRED_file]] <- PHRED_df # add it to your list
+  df_to_fill_bed <- rbind(df_to_fill_bed,bed)
   
 }
 
 
-phred_data = do.call(rbind, datalist)
+# subset
+df_to_fill_bed <- df_to_fill_bed %>%
+  dplyr::filter(library %in% my_subset) 
+# re-order libs
+df_to_fill_bed$library <- as.factor(df_to_fill_bed$library)
+df_to_fill_bed <- reorder_lib_fun(df_to_fill_bed)
 
-PHRED_plot <- phred_data %>% 
-  ggplot(.,
-         aes(x=read_position, y=PHRED_means, colour=library, shape = read,
-             group=interaction(library, read))) + 
-  geom_point(alpha=0.8, size=0.8) + 
-  geom_line(size=0.1)+
-  xlab("read position (bp)") +
-  ylab("average PHRED score") +
-  theme_bw() +
-  scale_x_continuous(breaks = c(0,50,100,150,200,250,300), lim = c(0, 300)) +
-  scale_y_continuous(breaks = c(30,32,34,36,38), lim = c(29, 38))+
-  theme(panel.border = element_blank(),
-        panel.grid.major = element_blank(),
-        panel.grid.minor = element_blank(),
-        axis.line = element_line(colour = "black"),
-        legend.position="right",
-        legend.title = element_blank(),
-        axis.text=element_text(size=14),
-        axis.title=element_text(size=18)) 
-if (NROW(unique(phred_data$library))>10) {
-  PHRED_plot <- PHRED_plot + 
-    theme(legend.position="none") +
-    ggtitle("HF barcode libraries")
+
+# keep contigs larger than 1Mbp ; needs to be done for P. aeruginosa only as the assembly is made out of 46 contigs
+if (species=="Pa") {  
+  
+  # if P. aeruginosa....
+  df_to_fill_bed$contig_n <- str_sub(df_to_fill_bed$contig, -2, -1)
+  df_to_fill_bed$contig_n <- gsub("_","",df_to_fill_bed$contig_n)
+  df_to_fill_bed$contig_n <- as.numeric(df_to_fill_bed$contig_n)
+  keep_contigs <- df_to_fill_bed %>%
+    group_by(contig_n) %>%
+    dplyr::summarize(max=max(position)) %>%
+    dplyr::filter(max>=100000) %>%
+    dplyr::select(contig_n) %>%
+    distinct()
+  df_to_fill_bed <- df_to_fill_bed %>%
+    dplyr::filter(contig_n %in% keep_contigs$contig_n)
+  
 }
 
 
-head(phred_data)
+text <- df_to_fill_bed %>%
+  group_by(library) %>% 
+  dplyr::mutate(mean=mean(coverage),
+                sd=sd(coverage),
+                zeros=NROW(which(coverage==0))) %>%
+  dplyr::select(library,mean,sd,zeros) %>%
+  distinct() %>%
+  dplyr::mutate(label=paste0("mean=",round(mean,2),
+                             "\n sd=",round(sd,2),
+                             "\n zero=", zeros))
 
-phred_data_stats <- phred_data %>% 
-  group_by(library, read) %>%
-  dplyr::summarise(
-    bp_count = n(),
-    PHRED_mean = mean(PHRED_means, na.rm = TRUE),
-    PHRED_sd = sd(PHRED_means, na.rm = TRUE)
+
+p1 <- df_to_fill_bed %>% 
+  group_by(library,coverage) %>%
+  tally() %>%
+  ggplot(., aes(x=coverage,y=n, color=library))+
+  geom_line() +
+  xlim(0,100) +
+  theme(legend.position="top",
+        legend.title = element_blank())+
+  labs(x="coverage per site",
+       y="Frequency (# sites)") +
+  theme_bw()+
+  theme(legend.position="none")
+
+p2 <- df_to_fill_bed %>%
+  dplyr::filter(coverage < 4) %>%
+  ggplot(., aes(x=coverage, color=library)) +
+  geom_histogram(fill="white", alpha=0.5,
+                 position="identity",
+                 binwidth=0.5)+
+  facet_grid(rows = vars(library)) +
+  theme(legend.position="top",
+        legend.title = element_blank())+
+  xlim(-0.5,5.5) +
+  labs(x="coverage per site",
+       y="Frequency (# sites)") +
+  theme_bw()+
+  theme(legend.position="none",
+        strip.text.y = element_text(size = 7, 
+                                    colour = "black", 
+                                    angle = 0)) +
+  geom_text(
+    data    = text,
+    mapping = aes(x = Inf, y = Inf, label = label, hjust=1.0, vjust=1), #vjust=1 hjust=1.0
+    size=3
   )
 
 
-fwrite(x=phred_data_stats, file=paste0(mydir,paste0(species,"_",goal,"_phred.csv")))
+# final cov plot
+cov_plot <- ggarrange(p1, p2, 
+                      ncol=2, nrow=1, common.legend = TRUE,
+                      labels=c("A","B"))
+
+
+########################################
+
+# display correlation by coverage:
+
+bed_corr <- df_to_fill_bed
+head(bed_corr)
+
+bed_corr <- bed_corr %>%
+  dplyr::select(contig,position,library,coverage) %>%
+  pivot_wider(names_from=library, values_from=coverage, values_fill = 0)
+
+tail(bed_corr)
+
+bed_corr_libs <- bed_corr[,3:ncol(bed_corr)]
+
+
+# compute correlation between libs based on their coverage (all contigs)
+# ++++++++++++++++++++++++++++
+# flattenCorrMatrix
+# ++++++++++++++++++++++++++++
+# cormat : matrix of the correlation coefficients
+# pmat : matrix of the correlation p-values
+flattenCorrMatrix <- function(cormat, pmat) {
+  ut <- upper.tri(cormat)
+  data.frame(
+    row = rownames(cormat)[row(cormat)[ut]],
+    column = rownames(cormat)[col(cormat)[ut]],
+    cor  =(cormat)[ut],
+    p = pmat[ut]
+  )
+}
+res <- rcorr(as.matrix(bed_corr_libs), type = "pearson")
+corr_df <- flattenCorrMatrix(res2$r, res2$P) %>%
+  arrange(desc(cor))
+
+fwrite(x=corr_df, file=paste0(mydir,paste0(species,"_",goal,"_coverage_correlation.csv")))
+
+
+########################################
+
+# display top largest contigs' lowest coverage areas 
+
+
+# keep n largest contigs
+if (species=="Pa") {  
+  
+  keep_largest_contigs <- df_to_fill_bed %>%
+    group_by(contig_n) %>%
+    dplyr::summarize(max=max(position)) %>%
+    dplyr::filter(max>=500000) %>%
+    dplyr::select(contig_n) %>%
+    distinct()
+  df_to_fill_bed <- df_to_fill_bed %>%
+    dplyr::filter(contig_n %in% keep_largest_contigs$contig_n)
+  
+}
+
+
+mycolors<- c('#999999', # grey
+             '#E69F00', # orange
+             '#56B4E9', # blue
+             "#FF3300", # red
+             "#333399", # purple
+             "#33CC33", # green
+             "#FFFF00") # yellow
+
+myshapes<- c(0, 1, 8, 9, 15, 17, 19)
+
+lowest_cov_plot <- df_to_fill_bed %>%
+  dplyr::filter(coverage < 10) %>%
+  ggplot(., aes(x=position,y=coverage,group=library)) +
+  geom_point(aes(shape=library, color=library), size=1)+
+  scale_shape_manual(values=myshapes)+
+  scale_color_manual(values=mycolors)+
+  #facet_grid(rows = vars(contig)) +
+  #facet_grid(rows = contig, scales="free_x") +
+  facet_grid(library~contig) +
+  theme_bw()+
+  theme(axis.text.x=element_text(size=6, angle=90),
+        strip.text.y = element_text(size = 8, 
+                                    colour = "black", 
+                                    angle = 0),
+        legend.position="right")+
+  labs(x="Genomic position (bp)",
+       y="Coverage", 
+       title = "Lowest coverage regions (4 largest contigs)")
+
+
 
 ########################################
 ########################################
@@ -1163,33 +1192,9 @@ pdf(paste0(mydir,species,"_",goal,'_out.pdf'))
 cov_plot
 # print lowest coverage regions
 lowest_cov_plot
-# plot correlation between libs based on their coverage
-col <- colorRampPalette(c("#BB4444", "#EE9988", "#FFFFFF", "#77AADD", "#4477AA"))
-# corr numbers (rho)
-corrplot(M, method = "color", col = col(200),
-         type = "upper", order = "AOE", 
-         tl.col = "black", tl.srt = 90, tl.cex = .8, # Text label color, size, and rotation
-         # hide correlation coefficient on the principal diagonal
-         diag = FALSE, title = "rho based on coverage \n (from bedgraphs - all contigs)",
-         number.cex = .6, addCoef.col = "black") # Add coefficient of correlation
-# significance symbols
-corrplot(M, method = "color", col = col(200),
-         type = "upper", order = "AOE", 
-         tl.col = "black", tl.srt = 90, tl.cex = .8, # Text label color, size, and rotation
-         # hide correlation coefficient on the principal diagonal
-         diag = FALSE, title = "pvalues of rho based on coverage \n (from bedgraphs - all contigs)",
-         # Combine with significance
-         p.mat = res1$p, sig.level = c(.001, .01, .05), insig = "label_sig", 
-         pch.cex = .8, pch.col = "white")
-#correlation plot
-bed_corr_libs %>% correlate() %>%  
-  network_plot(min_cor = 0.01)
 # plot insert size 
 insert_size_plot 
-# plot GC content bias
-# ggarrange(smooth_GC, straight_GC, 
-#           nrow = 2)
-straight_GC
+#straight_GC
 GC_picard
 # plot PHRED scores
 PHRED_plot
