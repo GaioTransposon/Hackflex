@@ -46,9 +46,10 @@ counts <- as.data.frame(as.numeric(counts$X1))
 colnames(counts) <- "counts"
 
 TOT_BARCODE_COUNTS <- sum(counts$counts)
-
-
 sort(counts$counts)
+head(counts)
+counts$counts<45000
+
 a <- counts %>%
   dplyr::summarise(barcodes_combos=n(),
                    Min=min(counts),
@@ -58,6 +59,17 @@ a <- counts %>%
                    Max=max(counts),
                    Sum=sum(counts),
                    Coeff.variation=sd(counts)/mean(counts))
+a_wo_outliers <- counts %>%
+  dplyr::filter(counts>45000) %>%
+  dplyr::summarise(barcodes_combos=n(),
+                   Min=min(counts),
+                   Mean=mean(counts),
+                   Median=median(counts),
+                   Sd=sd(counts),
+                   Max=max(counts),
+                   Sum=sum(counts),
+                   Coeff.variation=sd(counts)/mean(counts))
+
 counts_transposed <- as.data.frame(t(a), make.names = TRUE)
 counts_transposed$summary <- rownames(counts_transposed)
 colnames(counts_transposed) <- c("value","summary")
@@ -363,6 +375,7 @@ for(i in 1:nrow(mat)){
 
 # total barcode cross-contamination
 sum(u_summ)/NROW(fastq)*100
+100-sum(u_summ)/NROW(fastq)*100
 
 
 pdf(paste0(barcode_libs,"barcode_cross_contamination.pdf"))
@@ -403,21 +416,60 @@ dev.off()
 
 
 
+################################################################################
+################################################################################
 
 
+# Analysis of Hackflex barcode libraries based on insert size, GC bias, and coverage 
 
 
+################################################################################
+
+# Read stats: 
+
+stats <-read.table(file.path(barcode_libs,"reads_stats.tsv"))
+head(stats)
+stats$V5 <- NULL
+stats$V9 <- NULL
+
+stats$V1 <- gsub("interleaved_","",stats$V1)
+stats$V1 <- gsub(".fastq","",stats$V1)
+
+stats <- stats %>% 
+  dplyr::mutate(library=as.factor(recode_fun(V1))) %>%
+  drop.levels()
+
+read_lengths <- stats %>%
+  dplyr::select(library,V2,V6,V10)
+colnames(read_lengths) <- c("library","before_cleaning","after_cleaning","after_resizing")
+read_lengths$var <- "read_length"
+
+n_reads <- stats %>%
+  dplyr::select(library,V3,V7,V11)
+colnames(n_reads) <- c("library","before_cleaning","after_cleaning","after_resizing")
+n_reads$var <- "read_count"
+
+n_bp <- stats %>%
+  dplyr::select(library,V4,V8,V12)
+colnames(n_bp) <- c("library","before_cleaning","after_cleaning","after_resizing")
+n_bp$var <- "bp_count"
 
 
+x <- cbind(read_lengths[,1:4],n_reads[,2:4], n_bp[,2:4])
+
+to_paste <- c("", rep("avg read length",3), rep("# reads",3), rep("# bp",3))
+colnames(x) <- paste(to_paste, colnames(x), sep = " ")
+
+fwrite(x=x, file=paste0(barcode_libs,paste0(species,"_",goal,"_lib_processing_stats.csv")))
+
+# coverage 
+mean(x$`# bp after_cleaning`)/4600000
+mean(x$`# bp after_resizing`)/4600000
+
+################################################################################
 
 
-
-
-
-
-
-
-
+# Insert size: 
 
 
 IS_files <- grep(list.files(barcode_libs,pattern="^picardIS"), 
@@ -459,65 +511,32 @@ med_IS <- df_to_fill_insert_size %>%
                    sd=round(sd(insert_size),2),
                    var=round(var(insert_size),2))
 
-View(med_IS)
+
+IS_stats <- med_IS
+IS_stats$mean_bins <- cut(IS_stats$mean, breaks = 3)
+IS_stats1 <- IS_stats %>%
+  group_by(mean_bins) %>%
+  tally() %>%
+  dplyr::mutate(perc_mean=n/sum(n)*100)
+IS_stats1$IS_mean <- paste0(IS_stats1$mean_bins,": n=",IS_stats1$n," ",round(IS_stats1$perc_mean,2),"%")
+
+fwrite(IS_stats1,file=paste0(barcode_libs,"HF-barcodes_IS_size_mean.csv"))
 
 
-boxplot(df_to_fill_insert_size$insert_size ~ df_to_fill_insert_size$library, lwd=2,
-        main="Batch yield (%) for two trials")
+IS_stats$median_bins <- cut(IS_stats$median, breaks = 3)
+IS_stats2 <- IS_stats %>%
+  group_by(median_bins) %>%
+  tally() %>%
+  dplyr::mutate(perc_median=n/sum(n)*100)
+IS_stats2$IS_median <- paste0(IS_stats2$median_bins,": n=",IS_stats2$n," ",round(IS_stats2$perc_median,2),"%")
 
 
-# df_to_fill_insert_size %>%
-#   ggplot(., aes(x=insert_size,y=library))+
-#   geom_boxplot(outlier.size = 0.01) +
-#   theme(legend.position = "none",
-#         axis.text.y=element_blank())
-
-# ANOVA : difference of the means: 
-
-
-# Compute the analysis of variance
-res.aov <- aov(insert_size ~ library, data = df_to_fill_insert_size)
-summary(res.aov)
-
-ri <- pairwise.t.test(df_to_fill_insert_size$insert_size, 
-                      df_to_fill_insert_size$library,
-                      p.adjust.method = "bonferroni")
-
-ri
-rii <- ri$p.value
-NCOL(rii)
-NROW(rii)
-
-rii
-
-library(reshape2)
-melted_cormat <- reshape2::melt(rii)
-
-head(melted_cormat)
-NROW(melted_cormat)
-
-melted_cormat$value <- cut(melted_cormat$value, c(0, 0.01, 0.05, 1))
-medIS = median(df_to_fill_insert_size$insert_size)
-meanIS = round(mean(df_to_fill_insert_size$insert_size),2)
-
-pdf("~/Desktop/test.pdf")
-ggplot(data = melted_cormat, aes(x=Var1, y=Var2, fill=value)) + 
-  geom_tile() +
-  scale_fill_manual(values = c("red", 'orange1', 'darkmagenta', 'navyblue'))+
-  theme(axis.text.x=element_text(size=3, angle=90),
-        axis.text.y=element_text(size=3))+
-  ggtitle(paste0("Significance of correlation between 96 Hackflex libraries
-          \nbased on insert size (medium=",medIS," mean=",meanIS,")"))
-dev.off()
-
-NROW(melted_cormat)
-sign_diff <- melted_cormat %>%
-  dplyr::filter(value<0.05)
-NROW(sign_diff)/NROW(melted_cormat)*100
+fwrite(IS_stats2,file=paste0(barcode_libs,"HF-barcodes_IS_size_median.csv"))
 
 
 ########################################
 ########################################
+
 
 # GC content - Picard
 
@@ -585,121 +604,39 @@ GC_DF_text <- GC_DF %>% dplyr::select(library,rho,pval) %>%
                                   round(pval,3)))
 
 
+GC_stats <- GC_DF_text
+GC_stats$rho_bins <- cut(GC_stats$rho, c(-1, -0.8, -0.6, -0.4, -0.2, 0, 
+                                               0.2, 0.4, 0.6, 0.8, 1))
+GC_stats <- GC_stats %>%
+  group_by(rho_bins) %>%
+  tally() %>%
+  dplyr::mutate(perc=n/sum(n)*100)
+
+GC_stats$R_GC <- paste0(GC_stats$rho_bins,": n=",GC_stats$n," ",round(GC_stats$perc,2),"%")
+
+fwrite(GC_stats,file=paste0(barcode_libs,"HF-barcodes_GC_bias.csv"))
+
+
 GC_DF_text$pval <- cut(GC_DF_text$pval, c(0, 0.01, 0.05, 1))
 
-pdf("~/Desktop/test2.pdf")
-ggplot(GC_DF_text, aes(x=reorder(library,rho),y=rho, fill=pval)) +
+pdf(paste0(barcode_libs,"GC_plot.pdf"), width=3,height=4)
+ggplot(GC_DF_text, aes(x=reorder(library,rho),y=rho)) +
   geom_col(width = 0.5)+
   coord_flip() +
   theme(axis.text.x=element_text(size=10),
-        axis.text.y=element_text(size=5),
+        axis.text.y=element_blank(),
         axis.title.y=element_text(size=10), 
         legend.title = element_text()) +
-  ggtitle("Weighted correlation of coverage with GC content for 96 Hackflex libraries") +
+  #ggtitle("Weighted correlation of coverage with GC content for 96 Hackflex libraries") +
   labs(fill="p-value",
-       x="library",
-       y="Pearson rho") +
-  scale_fill_manual(values = c("red", 'orange1', 'darkmagenta', 'navyblue'))  
+       x="HF-barcode library",
+       y="Pearson R") #+
+  #scale_fill_manual(values = c("red", 'orange1', 'darkmagenta', 'navyblue'))  
 dev.off()
 
 
 
 
 
-
-
-
-
-
-
-
-
-
-
-
-
 ########################################
 ########################################
-
-
-
-
-# Coverage:
-
-bed_files <- grep(list.files(barcode_libs), 
-                  pattern='.bedgraph', value=TRUE)
-
-
-# construct an empty dataframe to build on 
-df_to_fill_bed <- data.frame(
-  contig = character(),
-  position = numeric(),
-  coverage = numeric(),
-  library = character(),
-  stringsAsFactors = FALSE
-)
-
-
-
-for (bed_file in bed_files) {
-  
-  bed <-read_delim(file.path(barcode_libs,bed_file), 
-                   "\t", escape_double = FALSE, col_names = FALSE, trim_ws = TRUE)
-  
-  # keep first contig only (length is 4640167 nt)
-  bed <- bed %>% dplyr::filter(X1==1)
-  
-  # clean lib names
-  id <- sub(".*interleaved_", "", bed_file)
-  id <- sub(".bedgraph", "", id)
-  bed$library=paste0(as.character(id))
-  
-  colnames(bed) <- c("contig","position","coverage","library")
-  
-  df_to_fill_bed <- rbind(df_to_fill_bed,bed)
-  
-}
-
-
-# display correlation by coverage:
-
-bed_corr <- df_to_fill_bed
-head(bed_corr)
-
-bed_corr <- bed_corr %>%
-  dplyr::select(contig,position,library,coverage) %>%
-  pivot_wider(names_from=library, values_from=coverage, values_fill = 0)
-
-tail(bed_corr)
-
-bed_corr_libs <- bed_corr[,3:ncol(bed_corr)]
-
-
-# compute correlation between libs based on their coverage (all contigs)
-# ++++++++++++++++++++++++++++
-# flattenCorrMatrix
-# ++++++++++++++++++++++++++++
-# cormat : matrix of the correlation coefficients
-# pmat : matrix of the correlation p-values
-flattenCorrMatrix <- function(cormat, pmat) {
-  ut <- upper.tri(cormat)
-  data.frame(
-    row = rownames(cormat)[row(cormat)[ut]],
-    column = rownames(cormat)[col(cormat)[ut]],
-    cor  =(cormat)[ut],
-    p = pmat[ut]
-  )
-}
-res <- rcorr(as.matrix(bed_corr_libs), type = "pearson")
-corr_df <- flattenCorrMatrix(res2$r, res2$P) %>%
-  arrange(desc(cor))
-
-fwrite(x=corr_df, file=paste0(mydir,paste0(species,"_",goal,"_coverage_correlation.csv")))
-
-
-########################################
-
-
-
-
-

@@ -38,13 +38,13 @@ library(Hmisc)
 #                "Ec.SF_1_PS.B2",
 #                "Ec.SF_1:50.B2") # all from E. coli
 #
-mydir <- "~/Desktop/MG1655/goal_paeruginosa/"
-phred_dir <- "~/Desktop/MG1655/raw_libs/"
-my_subset <- c("Pa.SF_1.B1",
-               "Pa.SF_1:50.B1",
-               "Pa.HF.B2",
-               "Pa.HF_55A.B2",
-               "Pa.HF_55A72E.B2") # all from P. aeruginosa
+# mydir <- "~/Desktop/MG1655/goal_paeruginosa/"
+# phred_dir <- "~/Desktop/MG1655/raw_libs/"
+# my_subset <- c("Pa.SF_1.B1",
+#                "Pa.SF_1:50.B1",
+#                "Pa.HF.B2",
+#                "Pa.HF_55A.B2",
+#                "Pa.HF_55A72E.B2") # all from P. aeruginosa
 # 
 # mydir <- "~/Desktop/MG1655/goal_saureus/"
 # phred_dir <- "~/Desktop/MG1655/raw_libs/"
@@ -65,10 +65,10 @@ my_subset <- c("Pa.SF_1.B1",
 # my_subset <- c("Pa.HF.B2",
 #                "Pa.HF_06x.B3")
 
-# mydir <- "~/Desktop/MG1655/goal_size_selection/saureus/"
-# phred_dir <- "~/Desktop/MG1655/raw_libs/"
-# my_subset <- c("Sa.HF.B2",
-#                "Sa.HF_06x.B3")
+mydir <- "~/Desktop/MG1655/goal_size_selection/saureus/"
+phred_dir <- "~/Desktop/MG1655/raw_libs/"
+my_subset <- c("Sa.HF.B2",
+               "Sa.HF_06x.B3")
 
 ########################################
 
@@ -404,6 +404,8 @@ med_IS <- df_to_fill_insert_size %>%
   dplyr::summarize(median=round(median(insert_size),2),
                    mean=round(mean(insert_size),2))
 
+fwrite(med_IS,file = paste0(mydir,"insert_size.csv"))
+
 # expand rows based on Count, select cols, and plot
 insert_size_plot_facets <- df_to_fill_insert_size %>% 
   dplyr::select(library,insert_size) %>%
@@ -635,7 +637,6 @@ for (gc_file in gc_files) {
 
 head(GC_DF)
 
-
 pic2 <- GC_DF
 
 
@@ -650,6 +651,10 @@ pic2_text <- pic2 %>% dplyr::select(library,rho,pval) %>%
                 label_pval=paste0("p=",
                                   round(pval,3)))
                 #pos=max(mymax)-seq(1:NROW(.)))
+
+
+fwrite(pic2_text,file = paste0(mydir,"GC_bias.csv"))
+
 
 #scaleFactor <- (median(pic2$NORMALIZED_COVERAGE) / median(pic2$MEAN_BASE_QUALITY))*1.5
 GC_picard <- pic2 %>%
@@ -838,7 +843,7 @@ flattenCorrMatrix <- function(cormat, pmat) {
   )
 }
 res <- rcorr(as.matrix(bed_corr_libs), type = "pearson")
-corr_df <- flattenCorrMatrix(res2$r, res2$P) %>%
+corr_df <- flattenCorrMatrix(res$r, res$P) %>%
   arrange(desc(cor))
 
 fwrite(x=corr_df, file=paste0(mydir,paste0(species,"_",goal,"_coverage_correlation.csv")))

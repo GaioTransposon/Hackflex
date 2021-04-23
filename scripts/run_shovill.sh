@@ -4,6 +4,7 @@
 
 # PART1: de-interleave the resized libs (done with library_processing.sh)
 # PART2: run assembly with shovill
+# PART3: get assembly stats 
 
 ##########################
 
@@ -39,7 +40,7 @@ paste forward_fq reverse_fq > forward_reverse_fq.txt
 
 ################################ PART 2 ################################
 
-
+# regular assembly (depth 150 is the default) 
 while read  first  second
 do
 filename_R1=$(basename $first)
@@ -47,12 +48,55 @@ R1="${filename_R1%.*}"
 singularity exec /shared/homes/12705859/shovill.sif shovill \
       --R1 $first \
       --R2 $second \
-      --outdir shovill$R1 \
+      --depth 150 \
+      --outdir shovillsub_150_$R1 \
+      --force # force to overwrite the output folder 
+done < "forward_reverse_fq.txt"
+
+
+# assembly by first subsampling to 20 depth
+while read  first  second
+do
+filename_R1=$(basename $first)
+R1="${filename_R1%.*}"
+singularity exec /shared/homes/12705859/shovill.sif shovill \
+      --R1 $first \
+      --R2 $second \
+      --depth 20 \
+      --outdir shovillsub_20_$R1 \
+      --force # force to overwrite the output folder 
+done < "forward_reverse_fq.txt"
+
+# assembly by first subsampling to 10 depth
+while read  first  second
+do
+filename_R1=$(basename $first)
+R1="${filename_R1%.*}"
+singularity exec /shared/homes/12705859/shovill.sif shovill \
+      --R1 $first \
+      --R2 $second \
+      --depth 10 \
+      --outdir shovillsub_10_$R1 \
+      --force # force to overwrite the output folder 
+done < "forward_reverse_fq.txt"
+
+# assembly by first subsampling to 5 depth
+while read  first  second
+do
+filename_R1=$(basename $first)
+R1="${filename_R1%.*}"
+singularity exec /shared/homes/12705859/shovill.sif shovill \
+      --R1 $first \
+      --R2 $second \
+      --depth 5 \
+      --outdir shovillsub_5_$R1 \
       --force # force to overwrite the output folder 
 done < "forward_reverse_fq.txt"
 
 mv shovill* out/.
 
+
+################################ PART 3 ################################
 
 # write some stats about the assemblies: 
 export these_assemblies=`ls out/shovillR1_reduced_trimmed2_trimmed_interleaved_*/contigs.fa`

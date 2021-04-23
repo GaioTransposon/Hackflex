@@ -250,6 +250,7 @@ N="${filename%.*}"
 java -jar /shared/homes/12705859/picard/build/libs/picard.jar CollectWgsMetrics \
       I=$mybam \
       O=picardCO_$N.txt \
+      READ_LENGTH=300 \
       R=$ref_genome
 done
 
