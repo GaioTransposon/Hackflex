@@ -245,10 +245,20 @@ for (assembly_file in assembly_files) {
   # read in file 
   ass_df <- read_delim(file.path(assembly_file), "\t", escape_double = FALSE, trim_ws = TRUE, skip = 1)
   
-  id <- sub(".*interleaved_", "", ass_df$filename)
+  downsampling <- sub(".*shovillsub_", "", ass_df$filename)
+  downsampling <- gsub("_R1.*","",downsampling)
+  
+  id <- ass_df$filename
+  id <- sub(".*interleaved_", "", id)
   id <- gsub("/contigs.fa","",id)
+  id
+  
   id <- recode_fun(id)
   ass_df$library=paste0(as.character(id))
+  ass_df$downsampling <- as.numeric(downsampling)
+  
+  ass_df <- ass_df %>%
+    dplyr::select(library, everything())
   
   datalist[[assembly_file]] <- ass_df # add it to your list
   
@@ -263,5 +273,36 @@ assembly_data <- assembly_data %>%
   dplyr::arrange(library)
 
 
+assembly_data <- assembly_data %>%
+  dplyr::select(library,n_contigs,contig_bp,ctg_N50,ctg_L50,downsampling, spp, type)
+
+head(assembly_data)
+
+
 assembly_data %>%
-  dplyr::select(library,n_contigs,contig_bp,ctg_N50,ctg_L50)
+  dplyr::filter(downsampling<150) %>%
+  ggplot(., aes(x=downsampling, y= contig_bp, group=type)) + 
+  facet_grid(rows = vars(spp), scales = "free") +
+  geom_point(color="darkgreen") +
+  geom_line(aes(linetype = type), size = 1.2, color="darkgreen") +
+  geom_line(size = 0.2, color="darkgreen") +
+  scale_linetype_manual(values=c("dashed", "dotted")) +
+  theme_bw() + 
+  theme(panel.border = element_blank(), 
+        panel.grid.major = element_blank(), 
+        panel.grid.minor = element_blank(), 
+        axis.line = element_line(colour = "black"),
+        legend.title = element_blank(),
+        legend.position = "top",
+        axis.text=element_text(size=8),
+        axis.title=element_text(size=14), 
+        strip.text.y = element_text(size = 8, 
+                                    colour = "black", 
+                                    angle = 0)) +
+  labs(x="downsampling to coverage")
+
+
+
+
+
+  

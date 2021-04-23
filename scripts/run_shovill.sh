@@ -40,7 +40,8 @@ paste forward_fq reverse_fq > forward_reverse_fq.txt
 
 ################################ PART 2 ################################
 
-# regular assembly (depth 150 is the default) 
+
+# assembly by first subsampling to 200 depth
 while read  first  second
 do
 filename_R1=$(basename $first)
@@ -48,11 +49,38 @@ R1="${filename_R1%.*}"
 singularity exec /shared/homes/12705859/shovill.sif shovill \
       --R1 $first \
       --R2 $second \
-      --depth 150 \
-      --outdir shovillsub_150_$R1 \
+      --depth 200 \
+      --outdir shovillsub_200_$R1 \
       --force # force to overwrite the output folder 
 done < "forward_reverse_fq.txt"
 
+
+# assembly by first subsampling to 100 depth
+while read  first  second
+do
+filename_R1=$(basename $first)
+R1="${filename_R1%.*}"
+singularity exec /shared/homes/12705859/shovill.sif shovill \
+      --R1 $first \
+      --R2 $second \
+      --depth 100 \
+      --outdir shovillsub_100_$R1 \
+      --force # force to overwrite the output folder 
+done < "forward_reverse_fq.txt"
+
+
+# assembly by first subsampling to 50 depth
+while read  first  second
+do
+filename_R1=$(basename $first)
+R1="${filename_R1%.*}"
+singularity exec /shared/homes/12705859/shovill.sif shovill \
+      --R1 $first \
+      --R2 $second \
+      --depth 50 \
+      --outdir shovillsub_50_$R1 \
+      --force # force to overwrite the output folder 
+done < "forward_reverse_fq.txt"
 
 # assembly by first subsampling to 20 depth
 while read  first  second
@@ -99,7 +127,7 @@ mv shovill* out/.
 ################################ PART 3 ################################
 
 # write some stats about the assemblies: 
-export these_assemblies=`ls out/shovillR1_reduced_trimmed2_trimmed_interleaved_*/contigs.fa`
+export these_assemblies=`ls out/shovillsub*/contigs.fa`
 statswrapper.sh addname=t in=$these_assemblies &> assembly_stats.txt
 mv assembly_stats.txt out/.
 
