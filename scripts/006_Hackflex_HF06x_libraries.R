@@ -37,6 +37,12 @@ my_subset <- c("Ec.HF.B3",
                "Pa.HF_06x.B3",
                "Sa.HF.B2",
                "Sa.HF_06x.B3")
+out_dir = "/Users/12705859/Desktop/MG1655/"
+
+these_dirs <- list.dirs(source_dir, recursive = FALSE)
+these_dirs <- grep("goal_size_selection", these_dirs, value = TRUE)
+
+
 
 ########################################
 
@@ -108,7 +114,7 @@ if (species=="Sa") {  sp <- "Staphylococcus aureus" }
 if (species=="HF") {  sp <- "Hackflex libraries (n=96)" }
 
 # add prefix to output files, if the goal of the analysis is to compare HF size selection libs with HF: 
-if (grepl("goal_size_selection", mydir, fixed = FALSE)==TRUE) {
+if (grepl("goal_size_selection", mydirs, fixed = FALSE)==TRUE) {
   goal <- "SizeSel"
 } else {
   goal <- "all"
@@ -117,19 +123,11 @@ if (grepl("goal_size_selection", mydir, fixed = FALSE)==TRUE) {
 ########################################
 ########################################
 
+# Insert size
 
 
-source_dir = "/Users/12705859/Desktop/MG1655"
-out_dir = "/Users/12705859/Desktop/MG1655/"
-
-these_dirs <- list.dirs(source_dir, recursive = FALSE)
-these_dirs <- grep("goal_size_selection", these_dirs, value = TRUE)
-
-
-# Insert size: 
 filenames <- list.files(these_dirs, pattern="picardIS", full.names=TRUE, recursive = TRUE)
 IS_files <- grep(filenames, pattern='.txt', value=TRUE)
-
 
 
 # construct an empty dataframe to build on 
@@ -166,13 +164,11 @@ df_to_fill_insert_size <- df_to_fill_insert_size %>% dplyr::filter(library %in% 
 df_to_fill_insert_size$library <- as.factor(df_to_fill_insert_size$library)
 df_to_fill_insert_size <- reorder_lib_fun(df_to_fill_insert_size)
 
-
 # expand rows based on Count, compute median insert sizes (to add to plot)
 med_IS <- df_to_fill_insert_size %>%
   group_by(library) %>%
   dplyr::summarize(median=round(median(insert_size),2),
                    mean=round(mean(insert_size),2))
-
 
 head(df_to_fill_insert_size)
 
@@ -206,37 +202,15 @@ df_to_fill_insert_size %>%
 dev.off()
 
 
+########################################
+########################################
 
 
+# Assembly stats: 
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-source_dir = "/Users/12705859/Desktop/MG1655"
-out_dir = "/Users/12705859/Desktop/MG1655/"
-
-these_dirs <- list.dirs(source_dir, recursive = FALSE)
-these_dirs <- grep("goal_size_selection", these_dirs, value = TRUE)
-
-
-# Insert size: 
 filenames <- list.files(these_dirs, pattern="assembly_stats", full.names=TRUE, recursive = TRUE)
 assembly_files <- grep(filenames, pattern='.txt', value=TRUE)
-
 
 
 datalist = list()
@@ -272,19 +246,14 @@ assembly_data$type <- gsub("^.+?\\.(.+?)\\..*$", "\\1", assembly_data$library)
 assembly_data <- assembly_data %>%
   dplyr::arrange(library)
 
-
-assembly_data <- assembly_data %>%
-  dplyr::select(library,n_contigs,contig_bp,ctg_N50,ctg_L50,downsampling, spp, type)
-
 head(assembly_data)
 
-
-assembly_data %>%
-  dplyr::filter(downsampling<150) %>%
+contig_bp <- assembly_data %>%
+  dplyr::filter(downsampling<55) %>%
   ggplot(., aes(x=downsampling, y= contig_bp, group=type)) + 
   facet_grid(rows = vars(spp), scales = "free") +
-  geom_point(color="darkgreen") +
-  geom_line(aes(linetype = type), size = 1.2, color="darkgreen") +
+  geom_point(color="darkgreen", size = 1.4) +
+  geom_line(aes(linetype = type), size = 1, color="darkgreen") +
   geom_line(size = 0.2, color="darkgreen") +
   scale_linetype_manual(values=c("dashed", "dotted")) +
   theme_bw() + 
@@ -294,15 +263,133 @@ assembly_data %>%
         axis.line = element_line(colour = "black"),
         legend.title = element_blank(),
         legend.position = "top",
-        axis.text=element_text(size=8),
-        axis.title=element_text(size=14), 
-        strip.text.y = element_text(size = 8, 
+        axis.text=element_text(size=15),
+        axis.title=element_text(size=20), 
+        strip.text.y = element_text(size = 15, 
                                     colour = "black", 
-                                    angle = 0)) +
-  labs(x="downsampling to coverage")
+                                    angle = 270)) +
+  labs(x="downsampling size (coverage depth)",
+       y="assembly size (bp)")
+
+N50 <- assembly_data %>%
+  dplyr::filter(downsampling<55) %>%
+  ggplot(., aes(x=downsampling, y= ctg_N50, group=type)) + 
+  facet_grid(rows = vars(spp), scales = "free") +
+  geom_point(color="darkgreen", size = 1.4) +
+  geom_line(aes(linetype = type), size = 1, color="darkgreen") +
+  geom_line(size = 0.2, color="darkgreen") +
+  scale_linetype_manual(values=c("dashed", "dotted")) +
+  theme_bw() + 
+  theme(panel.border = element_blank(), 
+        panel.grid.major = element_blank(), 
+        panel.grid.minor = element_blank(), 
+        axis.line = element_line(colour = "black"),
+        legend.title = element_blank(),
+        legend.position = "top",
+        axis.text=element_text(size=15),
+        axis.title=element_text(size=20), 
+        strip.text.y = element_text(size = 15, 
+                                    colour = "black", 
+                                    angle = 270)) +
+  labs(x="downsampling size (coverage depth)",
+       y="assembly N50")
+
+L50 <- assembly_data %>%
+  dplyr::filter(downsampling<55) %>%
+  ggplot(., aes(x=downsampling, y= ctg_L50, group=type)) + 
+  facet_grid(rows = vars(spp), scales = "free") +
+  geom_point(color="darkgreen", size = 1.4) +
+  geom_line(aes(linetype = type), size = 1, color="darkgreen") +
+  geom_line(size = 0.2, color="darkgreen") +
+  scale_linetype_manual(values=c("dashed", "dotted")) +
+  theme_bw() + 
+  theme(panel.border = element_blank(), 
+        panel.grid.major = element_blank(), 
+        panel.grid.minor = element_blank(), 
+        axis.line = element_line(colour = "black"),
+        legend.title = element_blank(),
+        legend.position = "top",
+        axis.text=element_text(size=15),
+        axis.title=element_text(size=20), 
+        strip.text.y = element_text(size = 15, 
+                                    colour = "black", 
+                                    angle = 270)) +
+  labs(x="downsampling size (coverage depth)",
+       y="assembly L50")
+
+
+N90 <- assembly_data %>%
+  dplyr::filter(downsampling<55) %>%
+  ggplot(., aes(x=downsampling, y= ctg_N90, group=type)) + 
+  facet_grid(rows = vars(spp), scales = "free") +
+  geom_point(color="darkgreen", size = 1.4) +
+  geom_line(aes(linetype = type), size = 1, color="darkgreen") +
+  geom_line(size = 0.2, color="darkgreen") +
+  scale_linetype_manual(values=c("dashed", "dotted")) +
+  theme_bw() + 
+  theme(panel.border = element_blank(), 
+        panel.grid.major = element_blank(), 
+        panel.grid.minor = element_blank(), 
+        axis.line = element_line(colour = "black"),
+        legend.title = element_blank(),
+        legend.position = "top",
+        axis.text=element_text(size=15),
+        axis.title=element_text(size=20), 
+        strip.text.y = element_text(size = 15, 
+                                    colour = "black", 
+                                    angle = 270)) +
+  labs(x="downsampling size (coverage depth)",
+       y="assembly N90")
 
 
 
+pdf(paste0(out_dir,"size_sel_assembly_length.pdf"))
+contig_bp
+dev.off()
 
+pdf(paste0(out_dir,"size_sel_assembly_L50.pdf"))
+L50
+dev.off()
 
+pdf(paste0(out_dir,"size_sel_assembly_N50.pdf"))
+N50
+dev.off()
   
+pdf(paste0(out_dir,"size_sel_assembly_N90.pdf"))
+N90
+dev.off()
+
+theme_smaller <- theme(axis.text=element_text(size=7),
+                       axis.title=element_text(size=9), 
+                       strip.text.y = element_text(size = 7, 
+                                                   colour = "black", 
+                                                   angle = 270))
+
+all <- ggarrange(contig_bp + theme_smaller, 
+                 L50 + theme_smaller, 
+                 N50 + theme_smaller, 
+                 N90 + theme_smaller, 
+                 nrow = 2, ncol=2, 
+                 common.legend = TRUE, labels=c("A","B","C","D"))
+
+pdf(paste0(out_dir,"size_sel_assembly_all.pdf"))
+all
+dev.off()
+
+
+# some info for manuscript: 
+
+assembly_data %>%
+  dplyr::filter(spp=="Pa") %>%
+  dplyr::filter(downsampling=="50") %>%
+  dplyr::select(library,ctg_L50,ctg_N50)
+
+assembly_data %>%
+  dplyr::filter(spp=="Sa") %>%
+  dplyr::filter(downsampling=="10"|downsampling=="20"|downsampling=="50") %>%
+  dplyr::select(library,ctg_L50,ctg_N50,downsampling)
+
+assembly_data %>%
+  dplyr::filter(spp=="Ec") %>%
+  dplyr::filter(downsampling=="10"|downsampling=="20") %>%
+  dplyr::select(library,ctg_L50,ctg_N50,downsampling)

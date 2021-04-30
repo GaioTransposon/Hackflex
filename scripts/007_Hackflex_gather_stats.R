@@ -10,7 +10,7 @@
 library(readr)
 library(openxlsx)
 library(gtools)
-
+library(dplyr)
 
 
 source_dir = "/Users/12705859/Desktop/MG1655"
@@ -40,10 +40,11 @@ for (each_filename in filenames) {
   clean_name <- gsub(".csv", "", clean_name)
   
   addWorksheet(wb, clean_name)
-  writeData(wb, sheet = clean_name, ldf, colNames = TRUE)
+  
   
 }
 
+writeData(wb, sheet = clean_name, ldf, colNames = TRUE)
 
 ## 3. save workbook 
 saveWorkbook(wb, paste0(out_dir,"stats.xlsx"), overwrite=TRUE)
@@ -153,8 +154,6 @@ bbduk
 
 
 
-
-
 ## 2. open csv and save as sheets of the workbook
 filenames <- list.files(these_dirs, pattern="all_lib_processing_stats.csv", full.names=TRUE, recursive = TRUE)
 
@@ -251,15 +250,44 @@ cols.num <- c("X.Unmapped","MappedFraction","MismatchRate","MedianCoverage","SDC
 ld[cols.num] <- sapply(ld[cols.num],as.numeric)
 
 # rounding and ordering
-Table_2 <- ld %>% dplyr::filter(library %in% my_subset) %>%
+mapping_table <- ld %>% dplyr::filter(library %in% my_subset) %>%
   mutate(library =  factor(library, levels = myord)) %>%
   arrange(library) %>%
   dplyr::mutate(MappedFraction=round(MappedFraction,3),
                 MismatchRate=round(MismatchRate,3),
                 SDCoverage=round(SDCoverage,2))
 
-fwrite(x = Table_2, file = paste0(out_dir,"Table_2.csv"))
+#####
 
+
+# add PCR duplicates info: 
+dups_files <- list.files(these_dirs, pattern="all_dups.csv", full.names=TRUE, recursive = TRUE)
+
+x0 <- data.frame(
+  library = character(),
+  PCR_duplicates = numeric(),
+  stringsAsFactors = FALSE
+)
+
+for (dup in dups_files) {
+  
+  x <- as.data.frame(lapply(dup, read.csv, header = TRUE))
+  
+  x <- x %>% dplyr::filter(library %in% my_subset) 
+  
+  x0 <- rbind(x0,x)
+  
+}
+
+dups <- x0 
+
+
+Table_2 <- inner_join(mapping_table,dups) %>%
+  dplyr::mutate(library =  factor(library, levels = myord)) %>%
+  dplyr::arrange(library)
+
+
+fwrite(x = Table_2, file = paste0(out_dir,"Table_2.csv"))
 
 
 ###########################################################################################
@@ -268,7 +296,7 @@ fwrite(x = Table_2, file = paste0(out_dir,"Table_2.csv"))
 
 
 ## Insert size
-filenames <- list.files(these_dirs, pattern="insert_size.csv", full.names=TRUE, recursive = TRUE)
+filenames <- list.files(these_dirs, pattern="all_insert_size.csv", full.names=TRUE, recursive = TRUE)
 
 ld1 <- data.frame(
   library = character(),
@@ -299,7 +327,7 @@ colnames(ld1) <- c("library","median_IS","mean_IS")
 
 
 ## GC bias
-filenames <- list.files(these_dirs, pattern="GC_bias.csv", full.names=TRUE, recursive = TRUE)
+filenames <- list.files(these_dirs, pattern="all_GC_bias.csv", full.names=TRUE, recursive = TRUE)
 
 ld2 <- data.frame(
   library = character(),

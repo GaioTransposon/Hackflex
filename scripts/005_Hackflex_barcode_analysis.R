@@ -184,7 +184,7 @@ distribution_text <- z2 %>%
 
 
 extreme_GC <- z2 %>% dplyr::filter(GC_content<20|GC_content>80)
-
+View(z2)
 GC_text <- z2 %>%
   dplyr::summarise(mean=mean(GC_content),
                    median=median(GC_content),
@@ -287,25 +287,32 @@ sequencing_run_barcodes <- read_xlsx(paste0(barcode_source_data,"sequencing_run_
 x <- sequencing_run_barcodes %>%
   dplyr::select(Sample_ID,index,index2)
 
-# exclude all that contain the word "barcode" 
-x <- dplyr::filter(x, !grepl("barcode",Sample_ID))
-x$X10 <- paste0(x$index,"+",x$index2)
+# exclude all that contain the word "barcode". These are the used barcodes in batch 3, 
+# all barcode combos except the HF-barcode libs ones
+these_barcodes_belong_to_other_samples <- dplyr::filter(x, !grepl("barcode",Sample_ID))
+these_barcodes_belong_to_other_samples$X10 <- paste0(these_barcodes_belong_to_other_samples$index,"+",
+                these_barcodes_belong_to_other_samples$index2)
 
 
 R1_undet_headers <- read_delim(paste0(barcode_source_data,"R1_undet_headers"),":", 
                                escape_double = FALSE, col_names = FALSE,
                                trim_ws = TRUE)
-# R2_undet_headers <- read_delim(paste0(barcode_source_data,"R2_undet_headers"),":", 
+# R2_undet_headers <- read_delim(paste0(barcode_source_data,"R2_undet_headers"),":",
 #                                escape_double = FALSE, col_names = FALSE,
 #                                trim_ws = TRUE)
-# 
-# NROW(R1_undet_headers)==NROW(R2_undet_headers)
+head(R1_undet_headers)
+#head(R2_undet_headers)
+tail(R1_undet_headers)
+#tail(R2_undet_headers)
+#NROW(R1_undet_headers)==NROW(R2_undet_headers)
 
 R1_undet0 <- R1_undet_headers %>%
   dplyr::select(X10) %>%
   dplyr::mutate(i5 = sub("\\+.*", "", X10)) %>%
   dplyr::mutate(i7 = str_extract(X10, '\\b[^+]+$')) %>%
   dplyr::select(X10,i5,i7)
+
+head(R1_undet0)
 
 # R2_unpaired <- R2_unpaired_headers %>%
 #   dplyr::select(X10) %>%
@@ -314,7 +321,7 @@ R1_undet0 <- R1_undet_headers %>%
 #   dplyr::select(i5,i7)
 
 
-# keep the true i5 and i7 present in list: 
+# keep the true i5 and i7 present in list (not necessarily in combos)
 NROW(R1_undet0)
 R1_undet1 <- R1_undet0 %>% 
   dplyr::filter(i5 %in% true_i5) %>%
@@ -324,7 +331,7 @@ NROW(R1_undet1)
 
 # exclude all the barcode combos that ended up in undetermined, that actually derive from other libraries (not all libs were demuxed): 
 R1_undet2 <- R1_undet1 %>%
-  dplyr::filter(!X10 %in% x$X10)
+  dplyr::filter(!X10 %in% these_barcodes_belong_to_other_samples$X10)
 
 
 
@@ -332,7 +339,10 @@ R1_undet2 <- R1_undet1 %>%
 
 
 u  <- as.data.frame(R1_undet2)
-u
+
+NROW(u)
+NROW(unique(u$X10))
+
 u$count <- 1
 
 NROW(unique(u$i5))
@@ -373,9 +383,10 @@ for(i in 1:nrow(mat)){
 }
 
 
-# total barcode cross-contamination
-sum(u_summ)/NROW(fastq)*100
-100-sum(u_summ)/NROW(fastq)*100
+# total barcode cross-contamination (bad/(bad+good))
+sum(u_summ)/(NROW(fastq)+sum(u_summ))*100
+# the rate og good combos
+100-sum(u_summ)/(NROW(fastq)+sum(u_summ))*100
 
 
 pdf(paste0(barcode_libs,"barcode_cross_contamination.pdf"))
@@ -511,6 +522,10 @@ med_IS <- df_to_fill_insert_size %>%
                    sd=round(sd(insert_size),2),
                    var=round(var(insert_size),2))
 
+# for manuscript: 
+mean(med_IS$mean)
+sd(med_IS$mean)
+hist(med_IS$mean)
 
 IS_stats <- med_IS
 IS_stats$mean_bins <- cut(IS_stats$mean, breaks = 3)

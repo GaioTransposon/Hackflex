@@ -38,20 +38,20 @@ library(Hmisc)
 #                "Ec.SF_1_PS.B2",
 #                "Ec.SF_1:50.B2") # all from E. coli
 #
-mydir <- "~/Desktop/MG1655/goal_paeruginosa/"
-phred_dir <- "~/Desktop/MG1655/raw_libs/"
-my_subset <- c("Pa.SF_1.B1",
-               "Pa.SF_1:50.B1",
-               "Pa.HF.B2",
-               "Pa.HF_55A.B2",
-               "Pa.HF_55A72E.B2") # all from P. aeruginosa
-# 
-# mydir <- "~/Desktop/MG1655/goal_saureus/"
+# mydir <- "~/Desktop/MG1655/goal_paeruginosa/"
 # phred_dir <- "~/Desktop/MG1655/raw_libs/"
-# my_subset <- c("Sa.SF_1.B1",
-#                "Sa.SF_1:50.B1",
-#                "Sa.HF.B2",
-#                "Sa.HF_55A.B2") # all from S. aureus
+# my_subset <- c("Pa.SF_1.B1",
+#                "Pa.SF_1:50.B1",
+#                "Pa.HF.B2",
+#                "Pa.HF_55A.B2",
+#                "Pa.HF_55A72E.B2") # all from P. aeruginosa
+# # 
+mydir <- "~/Desktop/MG1655/goal_saureus/"
+phred_dir <- "~/Desktop/MG1655/raw_libs/"
+my_subset <- c("Sa.SF_1.B1",
+               "Sa.SF_1:50.B1",
+               "Sa.HF.B2",
+               "Sa.HF_55A.B2") # all from S. aureus
 
 ########################################
 
@@ -355,6 +355,46 @@ fwrite(x=bbduk_data, file=paste0(mydir,paste0(species,"_",goal,"_bbduk.csv")))
 ########################################
 
 
+# open dups file:
+
+
+dups_files = list.files(mydir,pattern="dups_stats.txt")
+
+dups_stats <- read_delim(file.path(mydir,dups_files), 
+                                    "\t", escape_double = FALSE, col_names = FALSE, 
+                                    trim_ws = TRUE)
+
+# construct an empty dataframe to build on 
+dups_df <- data.frame(
+  PCR_duplicates = numeric(),
+  library = character(),
+  stringsAsFactors = FALSE
+)
+
+
+libs <- dups_stats %>% 
+  dplyr::filter(str_detect(X1, "^red")) %>%
+  dplyr::mutate(library=sub(".*interleaved_", "", X1)) %>%
+  dplyr::mutate(library=recode_fun(library)) %>%
+  dplyr::select(library)
+  
+PCR_duplicates <- dups_stats %>% 
+  dplyr::filter(str_detect(X1, "^DUPLICATE TOTAL")) %>%
+  dplyr::mutate(PCR_duplicates=as.numeric(sub("DUPLICATE TOTAL ", "", X1))) %>%
+  dplyr::select(PCR_duplicates)
+
+
+
+dups_df <- cbind(libs,PCR_duplicates) %>%
+  dplyr::filter(library %in% my_subset) %>%
+  drop.levels()
+
+fwrite(x=dups_df, file=paste0(mydir,paste0(species,"_",goal,"_dups.csv")))
+
+
+########################################
+########################################
+
 
 # Insert size: 
 
@@ -404,7 +444,8 @@ med_IS <- df_to_fill_insert_size %>%
   dplyr::summarize(median=round(median(insert_size),2),
                    mean=round(mean(insert_size),2))
 
-fwrite(med_IS,file = paste0(mydir,"insert_size.csv"))
+
+fwrite(med_IS,file = paste0(mydir,species,"_",goal,"_insert_size.csv"))
 
 # expand rows based on Count, select cols, and plot
 insert_size_plot_facets <- df_to_fill_insert_size %>% 
@@ -594,6 +635,7 @@ GC_DF <- data.frame(
   library = character(),
   rho = numeric(),
   pval = numeric(),
+  n_obs = numeric(),
   stringsAsFactors = FALSE
 )
 
@@ -616,6 +658,7 @@ for (gc_file in gc_files) {
     dplyr::filter(NORMALIZED_COVERAGE>0)
   
   head(gc_df)
+  NROW(gc_df)
   
   # get correlation between GC content and ratio, using fraction of reads as weight
   rho <- wtd.cor(gc_df$GC,
@@ -626,7 +669,8 @@ for (gc_file in gc_files) {
   
   myDF <- gc_df %>%
     dplyr::mutate(rho=rho,
-                  pval=pval) 
+                  pval=pval,
+                  n_obs=NROW(gc_df)) 
   
   head(myDF)
   
@@ -642,7 +686,7 @@ pic2 <- GC_DF
 
 mymax <- max(pic2$NORMALIZED_COVERAGE)
 
-pic2_text <- pic2 %>% dplyr::select(library,rho,pval) %>%
+pic2_text <- pic2 %>% dplyr::select(library,rho,pval,n_obs) %>%
   distinct() %>%
   dplyr::arrange(library) %>% # to get the factors order
   dplyr::mutate(label=paste0(library),
@@ -652,9 +696,7 @@ pic2_text <- pic2 %>% dplyr::select(library,rho,pval) %>%
                                   round(pval,3)))
                 #pos=max(mymax)-seq(1:NROW(.)))
 
-
-fwrite(pic2_text,file = paste0(mydir,"GC_bias.csv"))
-
+fwrite(pic2_text,file = paste0(mydir,species,"_",goal,"_GC_bias.csv"))
 
 #scaleFactor <- (median(pic2$NORMALIZED_COVERAGE) / median(pic2$MEAN_BASE_QUALITY))*1.5
 GC_picard <- pic2 %>%
@@ -846,6 +888,7 @@ res <- rcorr(as.matrix(bed_corr_libs), type = "pearson")
 corr_df <- flattenCorrMatrix(res$r, res$P) %>%
   arrange(desc(cor))
 
+
 fwrite(x=corr_df, file=paste0(mydir,paste0(species,"_",goal,"_coverage_correlation.csv")))
 
 
@@ -882,7 +925,7 @@ myshapes<- c(0, 1, 8, 9, 15, 17, 19)
 lowest_cov_plot <- df_to_fill_bed %>%
   dplyr::filter(coverage < 10) %>%
   ggplot(., aes(x=position,y=coverage,group=library)) +
-  geom_point(aes(shape=library, color=library), size=1)+
+  geom_point(aes(shape=library, color=library), size=0.01)+
   scale_shape_manual(values=myshapes)+
   scale_color_manual(values=mycolors)+
   #facet_grid(rows = vars(contig)) +
@@ -898,6 +941,54 @@ lowest_cov_plot <- df_to_fill_bed %>%
        y="Coverage", 
        title = "Lowest coverage regions (4 largest contigs)")
 
+# check sites with zero coverage: do the genomic positions overlap? 
+x0 <- df_to_fill_bed %>%
+  dplyr::filter(coverage < 1) %>% 
+  dplyr::mutate(library=as.factor(recode_fun(library))) %>%
+  dplyr::filter(library %in% my_subset) %>%
+  drop.levels()
+
+multiple_DFs <- split(x0, list(x0$contig, x0$library), drop = TRUE)
+
+# empty df
+lowcovDF <- data.frame(contig=character(),
+                       start_position=numeric(),
+                       end_position=numeric(),
+                       library=character())
+
+for (single_DF in multiple_DFs) {
+  
+  single <- as.data.frame(single_DF)
+  lib <- unique(single$library)
+  
+  x0 <- single %>%
+    dplyr::arrange(position)
+  
+  x0$bins <- c(0, cumsum(diff(x0$position) != 1))
+  
+  x0 <- x0 %>%
+    drop.levels() %>%
+    group_by(contig,bins) %>%
+    dplyr::summarise(start_position=min(position),
+                     end_position=max(position), .groups='drop') %>%
+    dplyr::select(contig,start_position,end_position)
+  
+  x0$library <- paste0(lib)
+  
+  lowcovDF <- rbind(lowcovDF,x0)
+  
+}
+
+lowcovDF <- lowcovDF %>%
+  dplyr::arrange(contig,start_position) %>%
+  dplyr::mutate(length_bp=end_position-start_position)
+
+# for manuscript: 
+lowcovDF %>%
+  group_by(library) %>%
+  dplyr::summarise(sum=sum(length_bp))
+
+fwrite(x=lowcovDF, file=paste0(mydir,paste0(species,"_",goal,"_zero_cov_sites.csv")))
 
 
 ########################################
