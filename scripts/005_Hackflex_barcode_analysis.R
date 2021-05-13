@@ -17,6 +17,7 @@ library(stringr)
 library(readxl)
 library(reshape2)
 library(textshape)
+library(Rmisc)
 
 
 # set directories and select samples: 
@@ -29,63 +30,99 @@ phred_dir <- "~/Desktop/MG1655/raw_libs/"
 ########################################
 ########################################
 
-
-demux_clean <- read_csv(paste0(barcode_source_data, "demux_clean.tsv"), col_names = FALSE)
-demux_clean <- demux_clean[6:677,]
-demux_clean$seq <- rep(seq(1,7), 96)
-
-demux_clean <- as.data.frame(demux_clean)
-
-counts <- demux_clean %>%
-  dplyr::filter(seq=="5") # filter barcode counts (all)
-
-counts$X1 <- gsub("</BarcodeCount>","",counts$X1)
-counts$X1 <- gsub("<BarcodeCount>","",counts$X1)
-
-counts <- as.data.frame(as.numeric(counts$X1))
-colnames(counts) <- "counts"
-
-TOT_BARCODE_COUNTS <- sum(counts$counts)
-sort(counts$counts)
-head(counts)
-counts$counts<45000
-
-a <- counts %>%
-  dplyr::summarise(barcodes_combos=n(),
-                   Min=min(counts),
-                   Mean=mean(counts),
-                   Median=median(counts),
-                   Sd=sd(counts),
-                   Max=max(counts),
-                   Sum=sum(counts),
-                   Coeff.variation=sd(counts)/mean(counts))
-a_wo_outliers <- counts %>%
-  dplyr::filter(counts>45000) %>%
-  dplyr::summarise(barcodes_combos=n(),
-                   Min=min(counts),
-                   Mean=mean(counts),
-                   Median=median(counts),
-                   Sd=sd(counts),
-                   Max=max(counts),
-                   Sum=sum(counts),
-                   Coeff.variation=sd(counts)/mean(counts))
-
-counts_transposed <- as.data.frame(t(a), make.names = TRUE)
-counts_transposed$summary <- rownames(counts_transposed)
-colnames(counts_transposed) <- c("value","summary")
-
-counts_stats_transposed <- counts_transposed %>%
-  dplyr::select(summary, everything())
-
-fwrite(x=counts_stats_transposed, file=paste0(barcode_libs,"barcode_summary.csv"))
+# barcodes demux
 
 
-pdf(paste0(barcode_libs,"barcode_distribution.pdf"))
+demux_clean_v0 <- read_csv(paste0(barcode_source_data, "demux_clean_v0.tsv"), col_names = FALSE)
+demux_clean_v1 <- read_csv(paste0(barcode_source_data, "demux_clean_v1.tsv"), col_names = FALSE)
+
+# function to return details of read counts
+give_counts <- function(demux_clean) {
+  
+  demux_clean <- demux_clean[6:677,]
+  demux_clean$seq <- rep(seq(1,7), 96)
+  
+  demux_clean <- as.data.frame(demux_clean)
+  
+  counts <- demux_clean %>%
+    dplyr::filter(seq=="5") # filter barcode counts (all)
+  
+  counts$X1 <- gsub("</BarcodeCount>","",counts$X1)
+  counts$X1 <- gsub("<BarcodeCount>","",counts$X1)
+  counts <- as.data.frame(as.numeric(counts$X1))
+  colnames(counts) <- "counts"
+  
+  return(counts)
+  
+}
+
+
+# function to return details of read counts
+give_deets <- function(counts) {
+  
+  # set minimum: a fourth of the read count of the lower confidence interval (CI set at 0.999)  
+  CIs <- CI(counts$counts,ci = 0.999)
+  mymin <- CIs[3]/4
+  
+  mymin
+  sort(counts$counts)
+
+  a <- counts %>%
+    dplyr::summarise(barcodes_combos=n(),
+                     Min=min(counts),
+                     Mean=mean(counts),
+                     Median=median(counts),
+                     Sd=sd(counts),
+                     Max=max(counts),
+                     Sum=sum(counts),
+                     Coeff.variation=sd(counts)/mean(counts))
+  counts_transposed <- as.data.frame(t(a), make.names = TRUE)
+  counts_transposed$summary <- rownames(counts_transposed)
+  colnames(counts_transposed) <- c("value","summary")
+  counts_a <- counts_transposed %>%
+    dplyr::select(summary, everything())
+  counts_a$selection <- "all"
+  
+  b <- counts %>%
+    dplyr::filter(counts>mymin) %>%
+    dplyr::summarise(barcodes_combos=n(),
+                     Min=min(counts),
+                     Mean=mean(counts),
+                     Median=median(counts),
+                     Sd=sd(counts),
+                     Max=max(counts),
+                     Sum=sum(counts),
+                     Coeff.variation=sd(counts)/mean(counts))
+  counts_transposed <- as.data.frame(t(b), make.names = TRUE)
+  counts_transposed$summary <- rownames(counts_transposed)
+  colnames(counts_transposed) <- c("value","summary")
+  counts_b <- counts_transposed %>%
+    dplyr::select(summary, everything())
+  counts_b$selection <- "without outliers"
+  
+  fin <- rbind(counts_a, counts_b)
+  
+  return(fin)
+}
+
+counts_v0 <- give_counts(demux_clean_v0)
+counts_v1 <- give_counts(demux_clean_v1)
+
+deets_v0 <- give_deets(counts_v0)
+deets_v1 <- give_deets(counts_v1)
+
+
+fwrite(x=deets_v0, file=paste0(barcode_libs,"barcodes_v0_summary.csv"))
+fwrite(x=deets_v1, file=paste0(barcode_libs,"barcodes_v1_summary.csv"))
+
+
+
+pdf(paste0(barcode_libs,"barcode_v0_distribution.pdf"))
 # Layout to split the screen
 layout(mat = matrix(c(1,2),2,1, byrow=TRUE),  height = c(1,8))
 # Draw the boxplot and the histogram 
 par(mar=c(0, 6, 1.1, 2))
-boxplot(counts$counts, ylim=c(0,200000), 
+boxplot(counts_v0$counts, 
         main = NULL,
         xlab = NULL,
         ylab = NULL,
@@ -100,26 +137,73 @@ boxplot(counts$counts, ylim=c(0,200000),
 par(mar=c(5,6,4,2)+0.1)
 #x and y labels font size with
 opar=par(ps=14)
-hist(counts$counts, xlim=c(0,200000), 
+hist(counts_v0$counts, 
+     breaks = seq(from=1, to=10000, by=500),
+     main = NULL, xlab = "barcode count", ylab = "Frequency")
+dev.off()
+
+
+pdf(paste0(barcode_libs,"barcode_v1_distribution.pdf"))
+# Layout to split the screen
+layout(mat = matrix(c(1,2),2,1, byrow=TRUE),  height = c(1,8))
+# Draw the boxplot and the histogram 
+par(mar=c(0, 6, 1.1, 2))
+boxplot(counts_v1$counts, ylim=c(0,200000), 
+        main = NULL,
+        xlab = NULL,
+        ylab = NULL,
+        axes = FALSE,
+        col = "grey",
+        border = "black",
+        horizontal = TRUE,
+        notch = TRUE
+)
+#par(mar=c(4, 3.1, 1.1, 2.1))
+#bootm left top right
+par(mar=c(5,6,4,2)+0.1)
+#x and y labels font size with
+opar=par(ps=14)
+hist(counts_v1$counts, xlim=c(0,200000), 
      breaks = seq(from=1, to=200000, by=10000),
      main = NULL, xlab = "barcode count", ylab = "Frequency")
 dev.off()
 
-# there's none with more than 200,000 barcode counts 
-which(counts$counts>200000)
+
 
 ########################################
 ########################################
 
 
-# barcodes GC content coverage bias : 
-fastq <- read_delim(file.path(barcode_source_data,"all_fastq_headers_clean.tsv"),":", 
+
+
+
+
+
+complete_barcodes_v0 <- read_csv(file.path(barcode_source_data,"complete_barcodes_v0.csv"))
+
+z2 <- complete_barcodes_v0 %>%
+  distinct() %>%
+  dplyr::mutate(i5 = sub("\\+.*", "", X8)) %>%
+  dplyr::mutate(i7 = str_extract(X8, '\\b[^+]+$')) %>%
+  dplyr::select(X8,i5,i7,barcode_count) %>%
+  dplyr::mutate(Gs = str_count(X8, "G"),
+                Cs = str_count(X8, "C"),
+                GC_content = ((Gs+Cs) / (str_length(X8)-1))*100) %>%
+  dplyr::select(i5,i7,barcode_count,GC_content)
+z2 <- as.data.frame(z2)
+
+
+
+
+
+
+# barcodes v1 : 
+fastq_v1 <- read_delim(paste0(barcode_source_data,"all_fastq_headers_clean.tsv"),":", 
            escape_double = FALSE, col_names = FALSE,
            trim_ws = TRUE)
 
-barcodes <- fastq
 
-barcodes <- barcodes %>% 
+barcodes_v1 <- fastq_v1 %>% 
   dplyr::select(X1,X8) 
 
 head(barcodes)
@@ -184,7 +268,7 @@ distribution_text <- z2 %>%
 
 
 extreme_GC <- z2 %>% dplyr::filter(GC_content<20|GC_content>80)
-View(z2)
+head(z2)
 GC_text <- z2 %>%
   dplyr::summarise(mean=mean(GC_content),
                    median=median(GC_content),
@@ -524,7 +608,12 @@ med_IS <- df_to_fill_insert_size %>%
 
 # for manuscript: 
 mean(med_IS$mean)
-sd(med_IS$mean)
+min(med_IS$mean)
+max(med_IS$mean)
+min(med_IS$sd)
+max(med_IS$sd)
+
+
 hist(med_IS$mean)
 
 IS_stats <- med_IS

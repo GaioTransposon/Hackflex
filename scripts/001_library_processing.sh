@@ -289,6 +289,7 @@ done
 
 ################################ PART 4 ################################
 
+
 # do some extra cleaning for the barcodes from the 96 libs (otherwise files is too large to move around)
 if [ $mydir == "/shared/homes/12705859/HACKLEX_LIBS/goal_barcode" ]; then
 
@@ -315,6 +316,7 @@ if [ $mydir == "/shared/homes/12705859/HACKLEX_LIBS/goal_barcode" ]; then
    paste all_fastq_headers_col1.tsv all_fastq_headers_col2.tsv all_fastq_headers_col3.tsv > all_fastq_headers_clean.tsv
    
 fi
+
 
 ################################ PART 5 ################################
 
@@ -350,7 +352,7 @@ mv BQ* out/.
 mv ME_* out/.
 mv reads_stats.tsv out/.
 mv picard* out/.
-mv all_fastq_headers_clean.tsv out/. # barcodes 
+mv all_fastq_headers_clean.tsv out/. # barcodes
 mv qc_*.json.gz out/. # alfred web interactive - input
 mv *bedgraph out/. # bedgraphs report coverage across all the regions of the chromosome(s)
 mv kraken_report_* out/.
@@ -389,12 +391,18 @@ mv kraken_report_* out/.
 # 
 # ###
 # 
-# export mydir=/shared/homes/12705859/HACKLEX_LIBS/goal_barcode
-# export ref_genome=/shared/homes/12705859/HACKLEX_LIBS/goal_barcode/source_data/E_coli_MG1655_UTS_nanopore_hybrid_500k.fa
+# export mydir=/shared/homes/12705859/HACKLEX_LIBS/goal_barcode_v1
+# export ref_genome=/shared/homes/12705859/HACKLEX_LIBS/goal_barcode_v1/source_data/E_coli_MG1655_UTS_nanopore_hybrid_500k.fa
 # qsub -V library_processing.sh
 # 
 # ###
 # 
+# export mydir=/shared/homes/12705859/HACKLEX_LIBS/goal_barcode_v0
+# export ref_genome=/shared/homes/12705859/HACKLEX_LIBS/goal_barcode_v0/source_data/E_coli_MG1655_UTS_nanopore_hybrid_500k.fa
+# qsub -V library_processing.sh
+# 
+# ###
+
 
 
 

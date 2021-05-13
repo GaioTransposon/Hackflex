@@ -28,15 +28,15 @@ library(Hmisc)
 
 # set directories and select samples: 
 
-# mydir <- "~/Desktop/MG1655/goal_ecoli/"
-# phred_dir <- "~/Desktop/MG1655/raw_libs/"
-# my_subset <- c("Ec.SF_1.B1",
-#                "Ec.SF_1:50.B1",
-#                "Ec.HF.B3",
-#                "Ec.HF_55A.B2",
-#                "Ec.SF_1.B2",
-#                "Ec.SF_1_PS.B2",
-#                "Ec.SF_1:50.B2") # all from E. coli
+mydir <- "~/Desktop/MG1655/goal_ecoli/"
+phred_dir <- "~/Desktop/MG1655/raw_libs/"
+my_subset <- c("Ec.SF_1.B1",
+               "Ec.SF_1:50.B1",
+               "Ec.HF.B3",
+               "Ec.HF_55A.B2",
+               "Ec.SF_1.B2",
+               "Ec.SF_1_PS.B2",
+               "Ec.SF_1:50.B2") # all from E. coli
 #
 # mydir <- "~/Desktop/MG1655/goal_paeruginosa/"
 # phred_dir <- "~/Desktop/MG1655/raw_libs/"
@@ -46,12 +46,12 @@ library(Hmisc)
 #                "Pa.HF_55A.B2",
 #                "Pa.HF_55A72E.B2") # all from P. aeruginosa
 # # 
-mydir <- "~/Desktop/MG1655/goal_saureus/"
-phred_dir <- "~/Desktop/MG1655/raw_libs/"
-my_subset <- c("Sa.SF_1.B1",
-               "Sa.SF_1:50.B1",
-               "Sa.HF.B2",
-               "Sa.HF_55A.B2") # all from S. aureus
+# mydir <- "~/Desktop/MG1655/goal_saureus/"
+# phred_dir <- "~/Desktop/MG1655/raw_libs/"
+# my_subset <- c("Sa.SF_1.B1",
+#                "Sa.SF_1:50.B1",
+#                "Sa.HF.B2",
+#                "Sa.HF_55A.B2") # all from S. aureus
 
 ########################################
 
