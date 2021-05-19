@@ -30,18 +30,17 @@ library(Hmisc)
 
 ########################################
 
-mydirs <- "~/Desktop/MG1655/goal_size_selection/"
+mydirs <- "~/Desktop/MG1655/goal_size_selection"
 my_subset <- c("Ec.HF.B3",
                "Ec.HF_06x.B3",
                "Pa.HF.B2",
                "Pa.HF_06x.B3",
                "Sa.HF.B2",
                "Sa.HF_06x.B3")
-out_dir = "/Users/12705859/Desktop/MG1655/"
+out_dir = "/Users/12705859/Desktop/MG1655/goal_size_selection/"
 
-these_dirs <- list.dirs(source_dir, recursive = FALSE)
+these_dirs <- list.dirs(mydirs, recursive = FALSE)
 these_dirs <- grep("goal_size_selection", these_dirs, value = TRUE)
-
 
 
 ########################################
@@ -49,26 +48,13 @@ these_dirs <- grep("goal_size_selection", these_dirs, value = TRUE)
 
 recode_fun <- function(chars) {
   
-  x <- recode(chars, J1 = "Ec.SF_1.B1")
-  x <- recode(x, J2 = "Ec.SF_1:50.B1")
-  x <- recode(x, K13 = "Ec.HF.B3")
-  x <- recode(x, K9 = "Ec.HF_55A.B2")
+  x <- recode(chars, K13 = "Ec.HF.B3")
   x <- recode(x, K14 = "Ec.HF_06x.B3")
-  x <- recode(x, K1 = "Ec.SF_1.B2")
-  x <- recode(x, K2 = "Ec.SF_1_PS.B2")
-  x <- recode(x, K3 = "Ec.SF_1:50.B2")
   
-  x <- recode(x, J5 = "Pa.SF_1.B1")
-  x <- recode(x, J6 = "Pa.SF_1:50.B1")
   x <- recode(x, K8 = "Pa.HF.B2")
-  x <- recode(x, K11 = "Pa.HF_55A.B2")
-  x <- recode(x, K5 = "Pa.HF_55A72E.B2")
   x <- recode(x, K15 = "Pa.HF_06x.B3")
   
-  x <- recode(x, J9 = "Sa.SF_1.B1")
-  x <- recode(x, J10 = "Sa.SF_1:50.B1")
   x <- recode(x, K7 = "Sa.HF.B2")
-  x <- recode(x, K10 = "Sa.HF_55A.B2")
   x <- recode(x, K16 = "Sa.HF_06x.B3")
   
   return(x)
@@ -78,24 +64,11 @@ recode_fun <- function(chars) {
 # reorder lib factor - function 
 reorder_lib_fun <- function(df) {
   
-  df$library  = factor(df$library, levels=c("Ec.SF_1.B1",
-                                            "Ec.SF_1:50.B1",
-                                            "Ec.HF.B3",
-                                            "Ec.HF_55A.B2",
+  df$library  = factor(df$library, levels=c("Ec.HF.B3",
                                             "Ec.HF_06x.B3",
-                                            "Ec.SF_1.B2",
-                                            "Ec.SF_1_PS.B2",
-                                            "Ec.SF_1:50.B2",
-                                            "Pa.SF_1.B1",
-                                            "Pa.SF_1:50.B1",
                                             "Pa.HF.B2",
-                                            "Pa.HF_55A.B2",
-                                            "Pa.HF_55A72E.B2",
                                             "Pa.HF_06x.B3",
-                                            "Sa.SF_1.B1",
-                                            "Sa.SF_1:50.B1",
                                             "Sa.HF.B2",
-                                            "Sa.HF_55A.B2",
                                             "Sa.HF_06x.B3"))
   # drop unused levels
   df <- df %>% 
@@ -111,7 +84,6 @@ species <- stringr::str_extract(my_subset[1], "^.{2}")
 if (species=="Ec") {  sp <- "Escherichia coli" }
 if (species=="Pa") {  sp <- "Pseudomonas aeruginosa" }
 if (species=="Sa") {  sp <- "Staphylococcus aureus" }
-if (species=="HF") {  sp <- "Hackflex libraries (n=96)" }
 
 # add prefix to output files, if the goal of the analysis is to compare HF size selection libs with HF: 
 if (grepl("goal_size_selection", mydirs, fixed = FALSE)==TRUE) {
@@ -271,7 +243,7 @@ contig_bp <- assembly_data %>%
   labs(x="downsampling size (coverage depth)",
        y="assembly size (bp)")
 
-N50 <- assembly_data %>%
+L50 <- assembly_data %>%
   dplyr::filter(downsampling<55) %>%
   ggplot(., aes(x=downsampling, y= ctg_N50, group=type)) + 
   facet_grid(rows = vars(spp), scales = "free") +
@@ -292,9 +264,9 @@ N50 <- assembly_data %>%
                                     colour = "black", 
                                     angle = 270)) +
   labs(x="downsampling size (coverage depth)",
-       y="assembly N50")
+       y="assembly L50")
 
-L50 <- assembly_data %>%
+N50 <- assembly_data %>%
   dplyr::filter(downsampling<55) %>%
   ggplot(., aes(x=downsampling, y= ctg_L50, group=type)) + 
   facet_grid(rows = vars(spp), scales = "free") +
@@ -315,10 +287,10 @@ L50 <- assembly_data %>%
                                     colour = "black", 
                                     angle = 270)) +
   labs(x="downsampling size (coverage depth)",
-       y="assembly L50")
+       y="assembly N50")
 
 
-N90 <- assembly_data %>%
+L90 <- assembly_data %>%
   dplyr::filter(downsampling<55) %>%
   ggplot(., aes(x=downsampling, y= ctg_N90, group=type)) + 
   facet_grid(rows = vars(spp), scales = "free") +
@@ -339,24 +311,23 @@ N90 <- assembly_data %>%
                                     colour = "black", 
                                     angle = 270)) +
   labs(x="downsampling size (coverage depth)",
-       y="assembly N90")
-
+       y="assembly L90")
 
 
 pdf(paste0(out_dir,"size_sel_assembly_length.pdf"))
 contig_bp
 dev.off()
 
-pdf(paste0(out_dir,"size_sel_assembly_L50.pdf"))
-L50
-dev.off()
-
 pdf(paste0(out_dir,"size_sel_assembly_N50.pdf"))
 N50
 dev.off()
+
+pdf(paste0(out_dir,"size_sel_assembly_L50.pdf"))
+L50
+dev.off()
   
-pdf(paste0(out_dir,"size_sel_assembly_N90.pdf"))
-N90
+pdf(paste0(out_dir,"size_sel_assembly_L90.pdf"))
+L90
 dev.off()
 
 theme_smaller <- theme(axis.text=element_text(size=7),
@@ -366,9 +337,9 @@ theme_smaller <- theme(axis.text=element_text(size=7),
                                                    angle = 270))
 
 all <- ggarrange(contig_bp + theme_smaller, 
-                 L50 + theme_smaller, 
                  N50 + theme_smaller, 
-                 N90 + theme_smaller, 
+                 L50 + theme_smaller, 
+                 L90 + theme_smaller, 
                  nrow = 2, ncol=2, 
                  common.legend = TRUE, labels=c("A","B","C","D"))
 

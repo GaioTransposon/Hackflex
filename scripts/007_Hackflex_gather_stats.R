@@ -54,28 +54,28 @@ saveWorkbook(wb, paste0(out_dir,"stats.xlsx"), overwrite=TRUE)
 
 # 002. Table 1: 
 
-my_subset <- c("Ec.SF_1.B1",
+my_subset <- c("Ec.SF.B1",
                "Ec.SF_1:50.B1",
-               "Ec.SF_1.B2",
+               "Ec.SF.B2",
                "Ec.SF_1:50.B2",
                "Ec.HF.B3", # sel from E. coli
-               "Pa.SF_1.B1",
+               "Pa.SF.B1",
                "Pa.SF_1:50.B1",
                "Pa.HF.B2", # sel from P. aeruginosa
-               "Sa.SF_1.B1",
+               "Sa.SF.B1",
                "Sa.SF_1:50.B1",
                "Sa.HF.B2") # sel from S. aureus
 
 # reorder lib factor - function 
-myord <-  c("Ec.SF_1.B1",
+myord <-  c("Ec.SF.B1",
             "Ec.SF_1:50.B1",
-            "Ec.SF_1.B2",
+            "Ec.SF.B2",
             "Ec.SF_1:50.B2",
             "Ec.HF.B3",
-            "Pa.SF_1.B1",
+            "Pa.SF.B1",
             "Pa.SF_1:50.B1",
             "Pa.HF.B2",
-            "Sa.SF_1.B1",
+            "Sa.SF.B1",
             "Sa.SF_1:50.B1",
             "Sa.HF.B2")
 
@@ -155,7 +155,7 @@ bbduk
 
 
 ## 2. open csv and save as sheets of the workbook
-filenames <- list.files(these_dirs, pattern="all_lib_processing_stats.csv", full.names=TRUE, recursive = TRUE)
+filenames <- list.files(these_dirs, pattern="lib_proc_stats.csv", full.names=TRUE, recursive = TRUE)
 
 ld <- data.frame(
   library = character(),
@@ -193,7 +193,8 @@ cleaning_stats
 
 Table1 <- inner_join(inner_join(phred,bbduk), cleaning_stats) %>%
   dplyr::mutate(PHRED_mean=round(PHRED_mean,2),
-                PHRED_sd=round(PHRED_sd,2))
+                PHRED_sd=round(PHRED_sd,2)) %>%
+  distinct()
 
 fwrite(x = Table1, file = paste0(out_dir,"Table_1.csv"))
 

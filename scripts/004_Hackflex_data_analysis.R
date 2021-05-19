@@ -28,19 +28,19 @@ library(Hmisc)
 
 # set directories and select samples: 
 
-mydir <- "~/Desktop/MG1655/goal_ecoli/"
-phred_dir <- "~/Desktop/MG1655/raw_libs/"
-my_subset <- c("Ec.SF_1.B1",
-               "Ec.SF_1:50.B1",
-               "Ec.HF.B3",
-               "Ec.HF_55A.B2",
-               "Ec.SF_1.B2",
-               "Ec.SF_1_PS.B2",
-               "Ec.SF_1:50.B2") # all from E. coli
+# mydir <- "~/Desktop/MG1655/goal_ecoli/"
+# phred_dir <- "~/Desktop/MG1655/raw_libs/"
+# my_subset <- c("Ec.SF.B1",
+#                "Ec.SF_1:50.B1",
+#                "Ec.HF.B3",
+#                "Ec.HF_55A.B2",
+#                "Ec.SF.B2",
+#                "Ec.SF_PS.B2",
+#                "Ec.SF_1:50.B2") # all from E. coli
 #
 # mydir <- "~/Desktop/MG1655/goal_paeruginosa/"
 # phred_dir <- "~/Desktop/MG1655/raw_libs/"
-# my_subset <- c("Pa.SF_1.B1",
+# my_subset <- c("Pa.SF.B1",
 #                "Pa.SF_1:50.B1",
 #                "Pa.HF.B2",
 #                "Pa.HF_55A.B2",
@@ -48,7 +48,7 @@ my_subset <- c("Ec.SF_1.B1",
 # # 
 # mydir <- "~/Desktop/MG1655/goal_saureus/"
 # phred_dir <- "~/Desktop/MG1655/raw_libs/"
-# my_subset <- c("Sa.SF_1.B1",
+# my_subset <- c("Sa.SF.B1",
 #                "Sa.SF_1:50.B1",
 #                "Sa.HF.B2",
 #                "Sa.HF_55A.B2") # all from S. aureus
@@ -65,16 +65,11 @@ my_subset <- c("Ec.SF_1.B1",
 # my_subset <- c("Pa.HF.B2",
 #                "Pa.HF_06x.B3")
 
-# mydir <- "~/Desktop/MG1655/goal_size_selection/saureus/"
-# phred_dir <- "~/Desktop/MG1655/raw_libs/"
-# my_subset <- c("Sa.HF.B2",
-#                "Sa.HF_06x.B3")
+mydir <- "~/Desktop/MG1655/goal_size_selection/saureus/"
+phred_dir <- "~/Desktop/MG1655/raw_libs/"
+my_subset <- c("Sa.HF.B2",
+               "Sa.HF_06x.B3")
 
-########################################
-
-# mydir <- "~/Desktop/MG1655/goal_barcode/"
-# phred_dir <- "~/Desktop/MG1655/raw_libs/"
-# my_subset <- paste0("HF-barcode-", seq(1,96))
 
 ########################################
 ########################################
@@ -82,23 +77,23 @@ my_subset <- c("Ec.SF_1.B1",
 
 recode_fun <- function(chars) {
   
-  x <- recode(chars, J1 = "Ec.SF_1.B1")
+  x <- recode(chars, J1 = "Ec.SF.B1")
   x <- recode(x, J2 = "Ec.SF_1:50.B1")
   x <- recode(x, K13 = "Ec.HF.B3")
   x <- recode(x, K9 = "Ec.HF_55A.B2")
   x <- recode(x, K14 = "Ec.HF_06x.B3")
-  x <- recode(x, K1 = "Ec.SF_1.B2")
-  x <- recode(x, K2 = "Ec.SF_1_PS.B2")
+  x <- recode(x, K1 = "Ec.SF.B2")
+  x <- recode(x, K2 = "Ec.SF_PS.B2")
   x <- recode(x, K3 = "Ec.SF_1:50.B2")
   
-  x <- recode(x, J5 = "Pa.SF_1.B1")
+  x <- recode(x, J5 = "Pa.SF.B1")
   x <- recode(x, J6 = "Pa.SF_1:50.B1")
   x <- recode(x, K8 = "Pa.HF.B2")
   x <- recode(x, K11 = "Pa.HF_55A.B2")
   x <- recode(x, K5 = "Pa.HF_55A72E.B2")
   x <- recode(x, K15 = "Pa.HF_06x.B3")
   
-  x <- recode(x, J9 = "Sa.SF_1.B1")
+  x <- recode(x, J9 = "Sa.SF.B1")
   x <- recode(x, J10 = "Sa.SF_1:50.B1")
   x <- recode(x, K7 = "Sa.HF.B2")
   x <- recode(x, K10 = "Sa.HF_55A.B2")
@@ -111,21 +106,21 @@ recode_fun <- function(chars) {
 # reorder lib factor - function 
 reorder_lib_fun <- function(df) {
   
-  df$library  = factor(df$library, levels=c("Ec.SF_1.B1",
+  df$library  = factor(df$library, levels=c("Ec.SF.B1",
                                             "Ec.SF_1:50.B1",
                                             "Ec.HF.B3",
                                             "Ec.HF_55A.B2",
                                             "Ec.HF_06x.B3",
-                                            "Ec.SF_1.B2",
-                                            "Ec.SF_1_PS.B2",
+                                            "Ec.SF.B2",
+                                            "Ec.SF_PS.B2",
                                             "Ec.SF_1:50.B2",
-                                            "Pa.SF_1.B1",
+                                            "Pa.SF.B1",
                                             "Pa.SF_1:50.B1",
                                             "Pa.HF.B2",
                                             "Pa.HF_55A.B2",
                                             "Pa.HF_55A72E.B2",
                                             "Pa.HF_06x.B3",
-                                            "Sa.SF_1.B1",
+                                            "Sa.SF.B1",
                                             "Sa.SF_1:50.B1",
                                             "Sa.HF.B2",
                                             "Sa.HF_55A.B2",
@@ -144,7 +139,6 @@ species <- stringr::str_extract(my_subset[1], "^.{2}")
 if (species=="Ec") {  sp <- "Escherichia coli" }
 if (species=="Pa") {  sp <- "Pseudomonas aeruginosa" }
 if (species=="Sa") {  sp <- "Staphylococcus aureus" }
-if (species=="HF") {  sp <- "Hackflex libraries (n=96)" }
 
 # add prefix to output files, if the goal of the analysis is to compare HF size selection libs with HF: 
 if (grepl("goal_size_selection", mydir, fixed = FALSE)==TRUE) {
@@ -283,20 +277,10 @@ n_bp$var <- "bp_count"
 
 x <- cbind(read_lengths[,1:4],n_reads[,2:4], n_bp[,2:4])
 
-# # stats libs before, after cleaning and after resizing, print png: 
-# kbl(x, format = "html") %>%
-#   kable_classic() %>%
-#   kable_styling(font_size = 15, "striped") %>%
-#   add_header_above(c(" " = 1, 
-#                      "avg read length" = 3, 
-#                      "# reads" = 3,
-#                      "# bp" = 3)) %>%
-#   kableExtra::as_image(file=paste0(mydir,species,"_stats.png")) 
-
 to_paste <- c("", rep("avg read length",3), rep("# reads",3), rep("# bp",3))
 colnames(x) <- paste(to_paste, colnames(x), sep = " ")
 
-fwrite(x=x, file=paste0(mydir,paste0(species,"_",goal,"_lib_processing_stats.csv")))
+fwrite(x=x, file=paste0(mydir,paste0(species,"_",goal,"_lib_proc_stats.csv")))
 
 ########################################
 ########################################
@@ -382,8 +366,6 @@ PCR_duplicates <- dups_stats %>%
   dplyr::filter(str_detect(X1, "^DUPLICATE TOTAL")) %>%
   dplyr::mutate(PCR_duplicates=as.numeric(sub("DUPLICATE TOTAL ", "", X1))) %>%
   dplyr::select(PCR_duplicates)
-
-
 
 dups_df <- cbind(libs,PCR_duplicates) %>%
   dplyr::filter(library %in% my_subset) %>%
@@ -499,127 +481,6 @@ insert_size_plot <- ggarrange(insert_size_plot_together, insert_size_plot_facets
 ########################################
 
 
-# # GC content: 
-# 
-# gc_files = list.files(mydir,pattern="GC_qc")
-# 
-# GC_DF <- data.frame(
-#   library = character(),
-#   Lib_GCcontent = numeric(),
-#   Lib_fractionOfReads = numeric(),
-#   obs.exp = numeric(),
-#   rho = numeric(),
-#   pval = numeric(),
-#   stringsAsFactors = FALSE
-# )
-# 
-# for (gc_file in gc_files) {
-#   
-#   gc <- gc_file
-#   
-#   id <- sub(".*interleaved_", "",gc)
-#   id <- gsub(".dedup.tsv.tsv","",id)
-#   id <- recode_fun(id)
-#   
-#   # read in files
-#   gc_df <- read.table(file.path(mydir,gc_file), quote="\"", comment.char="", header = TRUE)
-#   head(gc_df)
-# 
-#   ref <- gc_df[1:102,] %>%
-#     dplyr::select(Sample,GCcontent,fractionOfReads) 
-#   colnames(ref) <- paste("Ref", colnames(ref), sep = "_")
-#   ref <- ref %>%
-#     dplyr::mutate(bin=seq(1,102))
-#   head(ref)
-#   
-#   lib <- gc_df[103:204,] %>%
-#     dplyr::select(Sample,GCcontent,fractionOfReads) 
-#   colnames(lib) <- paste("Lib", colnames(lib), sep = "_")
-#   lib <- lib %>%
-#     dplyr::mutate(bin=seq(1,102))
-#   head(lib)
-#   
-#   gc_df <- inner_join(ref,lib) %>%
-#     dplyr::mutate(obs.exp=Lib_fractionOfReads/Ref_fractionOfReads) %>%
-#     filter_all(all_vars(!is.na(.))) # remove NaN (These come from 0/0 where no reads are expected in Reference, and neither are observed)
-# 
-#   # rename the library
-#   gc_df <- gc_df %>%
-#     dplyr::mutate(Lib_Sample=paste0(id))
-#   head(gc_df)
-#   
-#   # get correlation between GC content and ratio, using fraction of reads as weight
-#   rho <- wtd.cor(gc_df$Lib_GCcontent,
-#                  gc_df$obs.exp,
-#                  weight=gc_df$LIB_fractionOfReads)
-#   pval <- rho[1,4]
-#   rho <- rho[1,1]
-#   
-#   myDF <- gc_df %>%
-#     dplyr::mutate(rho=rho,
-#                   pval=pval,
-#                   library=Lib_Sample) %>%
-#     dplyr::select(library,Lib_GCcontent,Lib_fractionOfReads,obs.exp,rho,pval)
-#   
-#   head(myDF)
-#   head(GC_DF)
-#   GC_DF <- rbind(GC_DF, myDF)
-#   
-# }
-# 
-# 
-# # subset
-# GC_DF <- GC_DF %>% dplyr::filter(library %in% my_subset)
-# 
-# # re-order libs
-# GC_DF$library <- as.factor(GC_DF$library)
-# GC_DF <- reorder_lib_fun(GC_DF)
-# 
-# head(GC_DF)
-# 
-# mymax <- max(GC_DF$obs.exp)
-# GC_DF_text <- GC_DF %>% dplyr::select(library,rho,pval) %>% 
-#   distinct() %>%
-#   dplyr::arrange(library) %>% # to get the factors order
-#   dplyr::mutate(label=paste0(library), 
-#                 label_rho=paste0("rho=",
-#                                  round(rho,3)),
-#                 label_pval=paste0("p=",
-#                                  round(pval,5)),  
-#                 pos=max(mymax)-seq(1:NROW(.)))
-# 
-# head(GC_DF)
-# 
-# 
-# straight_GC <- GC_DF %>% 
-#   #dplyr::filter(diff!=1) %>% # don't show in plot ratio=1; rhos is already calculated 
-#   ggplot(.,aes(x=Lib_GCcontent,y=obs.exp,color=library))+
-#   geom_point(alpha=0.3)+
-#   theme_bw() +
-#   xlim(0,0.9) +
-#   #ylim(-2.5,15)+
-#   stat_smooth(method="lm", se=FALSE, size=0.5) +
-#   ylab("ratio observed/expected reads") +
-#   theme(legend.position="none") +
-#   geom_text(
-#     data    = GC_DF_text,
-#     mapping = aes(x = 0.45, y = pos, label = label, hjust=0, vjust=1), #vjust=1 hjust=1.0
-#     size=3
-#   ) +
-#   geom_text(
-#     data    = GC_DF_text,
-#     mapping = aes(x = 0.65, y = pos, label = label_rho, hjust=0, vjust=1), #vjust=1 hjust=1.0
-#     size=3
-#   ) +
-#   geom_text(
-#     data    = GC_DF_text,
-#     mapping = aes(x = 0.75, y = pos, label = label_pval, hjust=0, vjust=1), #vjust=1 hjust=1.0
-#     size=3
-#   )
-
-########################################
-########################################
-
 # GC content - Picard
 
 
@@ -694,7 +555,6 @@ pic2_text <- pic2 %>% dplyr::select(library,rho,pval,n_obs) %>%
                                  round(rho,3)),
                 label_pval=paste0("p=",
                                   round(pval,3)))
-                #pos=max(mymax)-seq(1:NROW(.)))
 
 fwrite(pic2_text,file = paste0(mydir,species,"_",goal,"_GC_bias.csv"))
 
@@ -731,8 +591,6 @@ GC_picard <- pic2 %>%
 
 ########################################
 ########################################
-
-
 
 
 # Coverage:
@@ -808,7 +666,6 @@ text <- df_to_fill_bed %>%
   dplyr::mutate(label=paste0("mean=",round(mean,2),
                              "\n sd=",round(sd,2),
                              "\n zero=", zeros))
-
 
 p1 <- df_to_fill_bed %>% 
   group_by(library,coverage) %>%
@@ -1161,13 +1018,6 @@ ME_data <- as.data.frame(t(ME_data[,-2]))
 colnames(ME_data) <- n
 ME_data$Sample <- factor(row.names(ME_data))
 rownames(ME_data) <- NULL
-
-
-# # ME data save as png : 
-# kbl(ME_data, format = "html") %>%
-#   kable_classic() %>%
-#   kable_styling(font_size = 15, "striped") %>%
-#   kableExtra::as_image(file=paste0(mydir,species,"_ALFRED_data.png")) 
 
 
 # Save as Table : 

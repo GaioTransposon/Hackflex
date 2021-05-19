@@ -290,14 +290,16 @@ done
 ################################ PART 4 ################################
 
 
-# do some extra cleaning for the barcodes from the 96 libs (otherwise files is too large to move around)
-if [ $mydir == "/shared/homes/12705859/HACKLEX_LIBS/goal_barcode" ]; then
+# do some extra cleaning for the barcodes from the 96 libs (otherwise file is too large to move around)
+
+if [ $mydir == "/shared/homes/12705859/HACKLEX_LIBS/goal_barcode_v0" ] || [ $mydir == "/shared/homes/12705859/HACKLEX_LIBS/goal_barcode_v1" ] then
+
 
    # extract headers from fastq files
-   for f in source_data/*.fastq
+   for f in source_data/original/*.fastq.gz
    do filename=$(basename $f)
    N="${filename%.*}"
-   cat $f | grep "@M00" > fastq_files_headers_$N.tsv
+   zcat $f | grep "@M00" > fastq_files_headers_$N.tsv
    done
    
    # add filename as column to each one
@@ -310,12 +312,18 @@ if [ $mydir == "/shared/homes/12705859/HACKLEX_LIBS/goal_barcode" ]; then
    # concatenate all
    cat fastq2_files_headers_with_file_name* > all_fastq_headers.tsv 
 
-   awk -F " " '{print $1}' all_fastq_headers.tsv | cut -c35- | cut -c-11 > all_fastq_headers_col1.tsv
-   awk -F " " '{print $2}' all_fastq_headers.tsv | cut -c27- > all_fastq_headers_col2.tsv
-   awk -F " " '{print $3}' all_fastq_headers.tsv > all_fastq_headers_col3.tsv
-   paste all_fastq_headers_col1.tsv all_fastq_headers_col2.tsv all_fastq_headers_col3.tsv > all_fastq_headers_clean.tsv
+   awk -F " " '{print $1}' all_fastq_headers.tsv | cut -c20- | rev | cut -c5- | rev > all_fastq_headers_col1.tsv
+   awk -F " " '{print $3}' all_fastq_headers.tsv > all_fastq_headers_col2.tsv
+   paste all_fastq_headers_col1.tsv all_fastq_headers_col2.tsv > all_fastq_headers_clean.tsv
+   
+   # Undetermined: 
+   zcat source_data/Undet/*.fastq.gz | grep "@M00" > undet_fastq_files_headers.tsv
+   awk -F " " '{print $2}' undet_fastq_files_headers.tsv > undet_fastq_files_headers_clean.tsv
+
    
 fi
+
+
 
 
 ################################ PART 5 ################################
@@ -353,6 +361,7 @@ mv ME_* out/.
 mv reads_stats.tsv out/.
 mv picard* out/.
 mv all_fastq_headers_clean.tsv out/. # barcodes
+mv undet_fastq_files_headers_clean.tsv out/. # undet reads
 mv qc_*.json.gz out/. # alfred web interactive - input
 mv *bedgraph out/. # bedgraphs report coverage across all the regions of the chromosome(s)
 mv kraken_report_* out/.

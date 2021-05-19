@@ -33,28 +33,65 @@ phred_dir <- "~/Desktop/MG1655/raw_libs/"
 # barcodes demux
 
 
-demux_clean_v0 <- read_csv(paste0(barcode_source_data, "demux_clean_v0.tsv"), col_names = FALSE)
-demux_clean_v1 <- read_csv(paste0(barcode_source_data, "demux_clean_v1.tsv"), col_names = FALSE)
+demux_v0 <- read_csv(paste0(barcode_source_data, "DemultiplexingStats_v0.xml"), col_names = FALSE)
+demux_v1 <- read_csv(paste0(barcode_source_data, "DemultiplexingStats_v1.xml"), col_names = FALSE)
 
 # function to return details of read counts
-give_counts <- function(demux_clean) {
+give_counts <- function(demux) {
   
-  demux_clean <- demux_clean[6:677,]
-  demux_clean$seq <- rep(seq(1,7), 96)
+  sample_name <- demux[demux$X1 %like% "Sample name", ] %>% distinct() 
+  counts <- demux[demux$X1 %like% "<BarcodeCount>", ] %>%
+    distinct()
   
-  demux_clean <- as.data.frame(demux_clean)
+  df <- cbind(sample_name,counts)
+  colnames(df) <- c("sample_name","counts")
   
-  counts <- demux_clean %>%
-    dplyr::filter(seq=="5") # filter barcode counts (all)
+  df$counts <- gsub("</BarcodeCount>","",df$counts)
+  df$counts <- gsub("<BarcodeCount>","",df$counts)
+  df$counts <- as.numeric(df$counts)
+  df$sample_name <- gsub("<Sample name=","",df$sample_name)
+  df$sample_name <- gsub(">","",df$sample_name)
   
-  counts$X1 <- gsub("</BarcodeCount>","",counts$X1)
-  counts$X1 <- gsub("<BarcodeCount>","",counts$X1)
-  counts <- as.data.frame(as.numeric(counts$X1))
-  colnames(counts) <- "counts"
-  
-  return(counts)
+  return(df)
   
 }
+
+
+
+counts_v0 <- give_counts(demux_v0)
+counts_v1 <- give_counts(demux_v1)
+
+
+#####
+
+# barcode contamination : 
+undet <- counts_v1 %>% dplyr::filter(sample_name == "\"Undetermined\"")
+all <- counts_v1 %>% dplyr::filter(sample_name == "\"all\"")
+barcode_contamination_rate_v1 <- undet$counts/all$counts
+
+undet <- counts_v0 %>% dplyr::filter(sample_name == "\"Undetermined\"")
+all <- counts_v0 %>% dplyr::filter(sample_name == "\"all\"")
+barcode_contamination_rate_v0 <- undet$counts/all$counts
+
+
+#####
+
+# keep only barcode libs
+
+# v0
+counts_v0 <- counts_v0 %>% dplyr::filter(!sample_name == "\"Undetermined\"" &
+                                           !sample_name == "\"all\"")
+
+# v1
+to_remove <- rbind(counts_v1[98:126,1], # these are the rest of the libs on that sequencing run, and the "all" 
+                   counts_v1[1,1]) # this is the undetermined
+
+
+counts_v1 <- counts_v1 %>%
+  dplyr::filter(str_detect(sample_name, "HF_barcode"))
+
+
+#####
 
 
 # function to return details of read counts
@@ -105,16 +142,15 @@ give_deets <- function(counts) {
   return(fin)
 }
 
-counts_v0 <- give_counts(demux_clean_v0)
-counts_v1 <- give_counts(demux_clean_v1)
 
 deets_v0 <- give_deets(counts_v0)
 deets_v1 <- give_deets(counts_v1)
 
+deets_v0 <- deets_v0 %>% dplyr::mutate(value=round(value,3))
+deets_v1 <- deets_v1 %>% dplyr::mutate(value=round(value,3))
 
 fwrite(x=deets_v0, file=paste0(barcode_libs,"barcodes_v0_summary.csv"))
 fwrite(x=deets_v1, file=paste0(barcode_libs,"barcodes_v1_summary.csv"))
-
 
 
 pdf(paste0(barcode_libs,"barcode_v0_distribution.pdf"))
@@ -173,342 +209,117 @@ dev.off()
 ########################################
 ########################################
 
-
-
-
-
-
+# GC content of oligos: 
 
 complete_barcodes_v0 <- read_csv(file.path(barcode_source_data,"complete_barcodes_v0.csv"))
-
-z2 <- complete_barcodes_v0 %>%
-  distinct() %>%
-  dplyr::mutate(i5 = sub("\\+.*", "", X8)) %>%
-  dplyr::mutate(i7 = str_extract(X8, '\\b[^+]+$')) %>%
-  dplyr::select(X8,i5,i7,barcode_count) %>%
-  dplyr::mutate(Gs = str_count(X8, "G"),
-                Cs = str_count(X8, "C"),
-                GC_content = ((Gs+Cs) / (str_length(X8)-1))*100) %>%
-  dplyr::select(i5,i7,barcode_count,GC_content)
-z2 <- as.data.frame(z2)
+complete_barcodes_v1 <- read_csv(file.path(barcode_source_data,"complete_barcodes_v1.csv"))
 
 
+give_GC_oligo <- function(complete_barcodes) {
+  
+  complete_barcodes_v0 <- complete_barcodes_v0 %>%
+    distinct() %>%
+    dplyr::mutate(Gs = str_count(Barcode, "G"),
+                  Cs = str_count(Barcode, "C"),
+                  GC_content = ((Gs+Cs) / (str_length(Barcode))*100))
+}
+
+give_GC_entire_barcode <- function(complete_barcodes) {
+  
+  complete_barcodes_v0 <- complete_barcodes_v0 %>%
+    distinct() %>%
+    dplyr::mutate(F5_oligo_N5 = paste0(F5, Barcode, N5),
+                  Gs = str_count(F5_oligo_N5, "G"),
+                  Cs = str_count(F5_oligo_N5, "C"),
+                  GC_content = ((Gs+Cs) / (str_length(F5_oligo_N5))*100))
+}
 
 
+# GC content of oligos
+
+v0_GC_oligo <- give_GC_oligo(complete_barcodes_v0)
+summary(v0_GC_oligo$GC_content)
+v0_GC_oligo %>% dplyr::filter(GC_content>80)
+v0_GC_oligo %>% dplyr::filter(GC_content<10)
 
 
-# barcodes v1 : 
-fastq_v1 <- read_delim(paste0(barcode_source_data,"all_fastq_headers_clean.tsv"),":", 
-           escape_double = FALSE, col_names = FALSE,
-           trim_ws = TRUE)
-
-
-barcodes_v1 <- fastq_v1 %>% 
-  dplyr::select(X1,X8) 
-
-head(barcodes)
-NROW(barcodes)
-
-barcodes$count <- 1
-z <- barcodes %>% 
-  group_by(X1,X8) %>%
-  dplyr::summarise(barcode_count=sum(count))
-
-head(z)
-
-# take the original barcode (this is the most frequent one)
-z1 <- z %>%
-  group_by(X1) %>%
-  slice_max(order_by = barcode_count,n=1) %>% # change to n>1 if you want the top n most frequent barcode sequences
-  group_by(X1) %>%
-  dplyr::mutate(barcode_count=sum(barcode_count))
-
-head(z1)
-
-z2 <- z1[,2:3] %>%
-  distinct() %>%
-  dplyr::mutate(i5 = sub("\\+.*", "", X8)) %>%
-  dplyr::mutate(i7 = str_extract(X8, '\\b[^+]+$')) %>%
-  dplyr::select(X8,i5,i7,barcode_count) %>%
-  dplyr::mutate(Gs = str_count(X8, "G"),
-                Cs = str_count(X8, "C"),
-                GC_content = ((Gs+Cs) / (str_length(X8)-1))*100) %>%
-  dplyr::select(i5,i7,barcode_count,GC_content)
-z2 <- as.data.frame(z2)
-head(z2)
-
-
-#contamination_rate <- sum(u_summ)*2/sum(z1$barcode_count)*100
-
-true_i5 <- as.list(z2$i5)
-true_i7 <- as.list(z2$i7)
-
-
-###
-# No barcode contained 3 or more identical bases in a row: 
-stringr::str_count(z2$i7, "AAA+")
-stringr::str_count(z2$i7, "TTT+")
-stringr::str_count(z2$i7, "CCC+")
-stringr::str_count(z2$i7, "GGG+")
-
-stringr::str_count(z2$i5, "AAA+")
-stringr::str_count(z2$i5, "TTT+")
-stringr::str_count(z2$i5, "CCC+")
-stringr::str_count(z2$i5, "GGG+")
-###
-
-distribution_text <- z2 %>%
-  dplyr::summarise(mean=mean(barcode_count),
-                   median=median(barcode_count),
-                   sd=sd(barcode_count)) %>%
-  dplyr::mutate(label=paste0("mean=",round(mean,2),
-                             "\n median=",round(median,2),
-                             "\n sd=",round(sd,2)))
+v1_GC_oligo <- give_GC_oligo(complete_barcodes_v1)
+summary(v1_GC_oligo$GC_content)
+v1_GC_oligo %>% dplyr::filter(GC_content>80)
+v1_GC_oligo %>% dplyr::filter(GC_content<10)
 
 
 
-extreme_GC <- z2 %>% dplyr::filter(GC_content<20|GC_content>80)
-head(z2)
-GC_text <- z2 %>%
-  dplyr::summarise(mean=mean(GC_content),
-                   median=median(GC_content),
-                sd=sd(GC_content),
-                `<20%`=NROW(which((GC_content<20)==TRUE))/NROW(GC_content)*100,
-                `>80%`=NROW(which((GC_content>80)==TRUE))/NROW(GC_content)*100) %>%
-  dplyr::mutate(label=paste0("mean=",round(mean,2),
-                             "\n median=",round(median,2),
-                             "\n sd=",round(sd,2),
-                             "\n <20%=",paste0(round(`<20%`,2),"%"),
-                             "\n >80%=",paste0(round(`>80%`,2)),"%"))
+# GC content of entire barcodes 
+
+v0_GC_entire_barcode <- give_GC_entire_barcode(complete_barcodes_v0)
+summary(v0_GC_entire_barcode$GC_content)
+v0_GC_entire_barcode %>% dplyr::filter(GC_content>80)
+v0_GC_entire_barcode %>% dplyr::filter(GC_content<10)
 
 
-# Pearson coefficient of correlation
-barcodes_GC_rho <- wtd.cor(z2$GC_content,z2$barcode_count,weight=z2$barcode_count)
-pval <- barcodes_GC_rho[1,4]
-rho <- barcodes_GC_rho[1,1]
-#extreme_GC_pearson <- wtd.cor(extreme_GC$GC_content,extreme_GC$barcode_count,weight=extreme_GC$barcode_count)
-barcodes_GC_rho <- as.data.frame(barcodes_GC_rho) %>%
+v1_GC_entire_barcode <- give_GC_entire_barcode(complete_barcodes_v1)
+summary(v1_GC_entire_barcode$GC_content)
+v1_GC_entire_barcode %>% dplyr::filter(GC_content>80)
+v1_GC_entire_barcode %>% dplyr::filter(GC_content<10)
+
+
+
+# GC content of entire barcodes - correlation with read counts: 
+
+v0_df <- v0_GC_entire_barcode %>% 
+  dplyr::select(`Well Position`,oligo, GC_content) %>%
+  pivot_wider(names_from=c(oligo), values_from=GC_content)
+GC_bias_v0 <- cbind(v0_df,counts_v0)
+GC_v0_plot <- GC_bias_v0 %>%
+  pivot_longer(cols=c(i5,i7)) %>%
+  ggplot(., aes(x=value,y=counts,color=name))+
+  geom_point(size=0.3)+
+  geom_smooth(size=0.5)+
+  labs(x="Barcode GC content (%)",
+       y="Barcode counts",
+       color="oligo")+
+  theme_bw()
+
+
+v1_df <- v1_GC_entire_barcode %>% 
+  dplyr::select(`Well Position`,oligo, GC_content) %>%
+  pivot_wider(names_from=c(oligo), values_from=GC_content)
+GC_bias_v1 <- cbind(v1_df,counts_v1)
+GC_v1_plot <- GC_bias_v1 %>%
+  pivot_longer(cols=c(i5,i7)) %>%
+  ggplot(., aes(x=value,y=counts,color=name))+
+  geom_point(size=0.3)+
+  geom_smooth(size=0.5)+
+  labs(x="Barcode GC content (%)",
+       y="Barcode counts",
+       color="oligo")+
+  theme_bw()
+
+# Pearson coefficient of correlation - v0
+i5_GC_rho_v0 <- as.data.frame(wtd.cor(GC_bias_v0$i5,GC_bias_v0$counts,weight=GC_bias_v0$counts)) %>%
+  dplyr::mutate(label=paste0("rho=",round(correlation,2),
+                             "\n p-value=",round(p.value,2)))
+i7_GC_rho_v0 <- as.data.frame(wtd.cor(GC_bias_v0$i7,GC_bias_v0$counts,weight=GC_bias_v0$counts)) %>%
   dplyr::mutate(label=paste0("rho=",round(correlation,2),
                              "\n p-value=",round(p.value,2)))
 
-########################################
-########################################
+
+# Pearson coefficient of correlation - v1
+i5_GC_rho_v1 <- as.data.frame(wtd.cor(GC_bias_v1$i5,GC_bias_v1$counts,weight=GC_bias_v1$counts)) %>%
+  dplyr::mutate(label=paste0("rho=",round(correlation,2),
+                             "\n p-value=",round(p.value,2)))
+i7_GC_rho_v1 <- as.data.frame(wtd.cor(GC_bias_v1$i7,GC_bias_v1$counts,weight=GC_bias_v1$counts)) %>%
+  dplyr::mutate(label=paste0("rho=",round(correlation,2),
+                             "\n p-value=",round(p.value,2)))
 
 
-# PLOT: 
+GC_plots <- ggarrange(GC_v0_plot,GC_v1_plot, common.legend = TRUE, labels=c("C","D"))
 
-pdf(paste0(barcode_libs,"barcodes_distribution&GC_content.pdf"))
-# barcode distribution: 
-z2 %>%
-  dplyr::select(barcode_count) %>%
-  distinct() %>%
-  ggplot(., aes(x=barcode_count)) + 
-  geom_histogram(aes(y=..density..), colour="black", fill="white")+
-  geom_density(alpha=.2, fill="#FF6666") +
-  ggtitle("barcode distribution (only perfect barcode match)") +
-  geom_text(
-    data    = distribution_text,
-    mapping = aes(x = Inf, y = Inf, label = label, hjust=1.0, vjust=1), #vjust=1 hjust=1.0
-    size=3
-  )
-# barcode counts vs barcode GC content
-z2 %>%
-  dplyr::select(barcode_count,GC_content) %>%
-  distinct() %>%
-  ggplot(., aes(x=GC_content,y=barcode_count))+
-  geom_point()+
-  #geom_smooth(method="lm", se=FALSE) +
-  #stat_cor(p.accuracy = 0.001, r.accuracy = 0.01, cor.coef.name = "R", method = "pearson") +
-  labs(x="barcode GC content (%)",
-       y="barcode count") +
-  ggtitle("GC content coverage bias (only perfect barcode match) \n with barcode counts as weights") +
-  geom_text(
-    data    = GC_text,
-    mapping = aes(x = 70, y = Inf, label = label, hjust=1.0, vjust=1), #vjust=1 hjust=1.0
-    size=3
-  ) +
-  geom_text(
-    data    = barcodes_GC_rho,
-    mapping = aes(x = 20, y = Inf, label = label, hjust=1.0, vjust=1), #vjust=1 hjust=1.0
-    size=3
-  )
-# barcodes of each library, their count, and their GC content
-z2 %>%
-  dplyr::select(barcode_count,GC_content) %>%
-  distinct() %>%
-  dplyr::mutate(lib=as.character(seq(1:NROW(.)))) %>%
-  ggplot(., aes(x=fct_reorder(lib, GC_content),y=barcode_count, color=GC_content))+ 
-  geom_point(alpha=0.8)+
-  theme(axis.text.x=element_blank()) +
-  scale_color_gradientn(colours = rainbow(5)) +
-  ggtitle("Barcode count vs barcode GC content (perfect barcode match only)")
-# barcode counts - rank sorted 
-z2 %>%
-  dplyr::select(barcode_count,GC_content) %>%
-  distinct() %>%
-  dplyr::mutate(lib=as.character(seq(1:NROW(.)))) %>%
-  ggplot(., aes(x=fct_reorder(lib, barcode_count), y=barcode_count))+
-  geom_boxplot()+
-  labs(x="Barcodes (rank-sorted)",
-       y="number of reads assigned to barcode") +
-  ggtitle("Rank-sorted barcodes and their count (perfect barcode match only)")
+
+pdf(paste0(barcode_libs,"barcode_v0v1_GC_bias.pdf"), width=7,height=3)
+GC_plots
 dev.off()
-
-
-
-########################################
-########################################
-
-
-
-# barcode cross-contamination
-
-
-# list of all sequencing libs from batch 3 
-sequencing_run_barcodes <- read_xlsx(paste0(barcode_source_data,"sequencing_run_barcodes_20210212.xlsx"), 
-                                skip = 19)
-
-x <- sequencing_run_barcodes %>%
-  dplyr::select(Sample_ID,index,index2)
-
-# exclude all that contain the word "barcode". These are the used barcodes in batch 3, 
-# all barcode combos except the HF-barcode libs ones
-these_barcodes_belong_to_other_samples <- dplyr::filter(x, !grepl("barcode",Sample_ID))
-these_barcodes_belong_to_other_samples$X10 <- paste0(these_barcodes_belong_to_other_samples$index,"+",
-                these_barcodes_belong_to_other_samples$index2)
-
-
-R1_undet_headers <- read_delim(paste0(barcode_source_data,"R1_undet_headers"),":", 
-                               escape_double = FALSE, col_names = FALSE,
-                               trim_ws = TRUE)
-# R2_undet_headers <- read_delim(paste0(barcode_source_data,"R2_undet_headers"),":",
-#                                escape_double = FALSE, col_names = FALSE,
-#                                trim_ws = TRUE)
-head(R1_undet_headers)
-#head(R2_undet_headers)
-tail(R1_undet_headers)
-#tail(R2_undet_headers)
-#NROW(R1_undet_headers)==NROW(R2_undet_headers)
-
-R1_undet0 <- R1_undet_headers %>%
-  dplyr::select(X10) %>%
-  dplyr::mutate(i5 = sub("\\+.*", "", X10)) %>%
-  dplyr::mutate(i7 = str_extract(X10, '\\b[^+]+$')) %>%
-  dplyr::select(X10,i5,i7)
-
-head(R1_undet0)
-
-# R2_unpaired <- R2_unpaired_headers %>%
-#   dplyr::select(X10) %>%
-#   dplyr::mutate(i5 = sub("\\+.*", "", X10)) %>%
-#   dplyr::mutate(i7 = str_extract(X10, '\\b[^+]+$')) %>%
-#   dplyr::select(i5,i7)
-
-
-# keep the true i5 and i7 present in list (not necessarily in combos)
-NROW(R1_undet0)
-R1_undet1 <- R1_undet0 %>% 
-  dplyr::filter(i5 %in% true_i5) %>%
-  dplyr::filter(i7 %in% true_i7) 
-NROW(R1_undet1)
-
-
-# exclude all the barcode combos that ended up in undetermined, that actually derive from other libraries (not all libs were demuxed): 
-R1_undet2 <- R1_undet1 %>%
-  dplyr::filter(!X10 %in% these_barcodes_belong_to_other_samples$X10)
-
-
-
-
-
-
-u  <- as.data.frame(R1_undet2)
-
-NROW(u)
-NROW(unique(u$X10))
-
-u$count <- 1
-
-NROW(unique(u$i5))
-NROW(unique(u$i7))
-
-u_sum <- u %>%
-  group_by(i5,i7) %>%
-  dplyr::summarise(sum=sum(count))
-
-
-NROW(unique(u_sum[,1:2]))
-
-# it worked. 
-u_sum <- as.data.frame(u_sum)
-head(u_sum)
-sum(u_sum$sum)
-
-
-u_summ <- acast(u_sum, i5~i7, value.var="sum", fill = 0)
-
-
-swap <- function(matrixRow,x,y){
-  #x is diagonal index
-  #y is max of the row
-  indexY <- which(matrixRow == y)
-  valX <- matrixRow[x]
-  matrixRow[x] <- y
-  matrixRow[indexY] <- valX
-  return(matrixRow)
-}
-
-
-mat <- u_summ
-for(i in 1:nrow(mat)){
-  rowI <- mat[i,]
-  y <- max(rowI)
-  mat[i,] <- swap(rowI, i, y)
-}
-
-
-# total barcode cross-contamination (bad/(bad+good))
-sum(u_summ)/(NROW(fastq)+sum(u_summ))*100
-# the rate og good combos
-100-sum(u_summ)/(NROW(fastq)+sum(u_summ))*100
-
-
-pdf(paste0(barcode_libs,"barcode_cross_contamination.pdf"))
-mat <- u_summ
-for(i in 1:nrow(mat)){
-  rowI <- mat[i,]
-  y <- max(rowI)
-  mat[i,] <- swap(rowI, i, y)
-}
-mat %>%
-  cluster_matrix() %>%
-  tidy_matrix('i5', 'i7') %>%
-  dplyr::mutate(
-    i5 = factor(i5, levels = unique(i5)),
-    i7 = factor(i7, levels = unique(i7))        
-  ) %>%
-  group_by(i5) %>%
-  ggplot(aes(i5, i7, fill=value)) +
-  geom_tile() +
-  scale_fill_gradient(low = "gold1", high = "red4",
-                      na.value = "white") +
-  geom_text(aes(label = round(value, 1)), size=0.8) +
-  theme(axis.text.x=element_text(angle=90))+
-  theme(
-    axis.text.y = element_text(size = 5)   ,
-    axis.text.x = element_text(
-      size = 5, 
-      hjust = 1, 
-      vjust = 1, 
-      angle = 45
-    ),   
-    legend.position = 'bottom',
-    legend.key.height = grid::unit(.1, 'cm'),
-    legend.key.width = grid::unit(.5, 'cm'),
-    legend.text = element_text(angle = 90,size=5)
-  ) 
-dev.off()
-
 
 
 ################################################################################
@@ -530,22 +341,18 @@ stats$V9 <- NULL
 stats$V1 <- gsub("interleaved_","",stats$V1)
 stats$V1 <- gsub(".fastq","",stats$V1)
 
-stats <- stats %>% 
-  dplyr::mutate(library=as.factor(recode_fun(V1))) %>%
-  drop.levels()
-
 read_lengths <- stats %>%
-  dplyr::select(library,V2,V6,V10)
+  dplyr::select(V1,V2,V6,V10)
 colnames(read_lengths) <- c("library","before_cleaning","after_cleaning","after_resizing")
 read_lengths$var <- "read_length"
 
 n_reads <- stats %>%
-  dplyr::select(library,V3,V7,V11)
+  dplyr::select(V1,V3,V7,V11)
 colnames(n_reads) <- c("library","before_cleaning","after_cleaning","after_resizing")
 n_reads$var <- "read_count"
 
 n_bp <- stats %>%
-  dplyr::select(library,V4,V8,V12)
+  dplyr::select(V1,V4,V8,V12)
 colnames(n_bp) <- c("library","before_cleaning","after_cleaning","after_resizing")
 n_bp$var <- "bp_count"
 
@@ -555,7 +362,7 @@ x <- cbind(read_lengths[,1:4],n_reads[,2:4], n_bp[,2:4])
 to_paste <- c("", rep("avg read length",3), rep("# reads",3), rep("# bp",3))
 colnames(x) <- paste(to_paste, colnames(x), sep = " ")
 
-fwrite(x=x, file=paste0(barcode_libs,paste0(species,"_",goal,"_lib_processing_stats.csv")))
+fwrite(x=x, file=paste0(barcode_libs,paste0("HF-barcode_v1_lib_processing_stats.csv")))
 
 # coverage 
 mean(x$`# bp after_cleaning`)/4600000
@@ -624,7 +431,7 @@ IS_stats1 <- IS_stats %>%
   dplyr::mutate(perc_mean=n/sum(n)*100)
 IS_stats1$IS_mean <- paste0(IS_stats1$mean_bins,": n=",IS_stats1$n," ",round(IS_stats1$perc_mean,2),"%")
 
-fwrite(IS_stats1,file=paste0(barcode_libs,"HF-barcodes_IS_size_mean.csv"))
+fwrite(IS_stats1,file=paste0(barcode_libs,"HF-barcode_v1_IS_size_mean.csv"))
 
 
 IS_stats$median_bins <- cut(IS_stats$median, breaks = 3)
@@ -635,7 +442,7 @@ IS_stats2 <- IS_stats %>%
 IS_stats2$IS_median <- paste0(IS_stats2$median_bins,": n=",IS_stats2$n," ",round(IS_stats2$perc_median,2),"%")
 
 
-fwrite(IS_stats2,file=paste0(barcode_libs,"HF-barcodes_IS_size_median.csv"))
+fwrite(IS_stats2,file=paste0(barcode_libs,"HF-barcode_v1_IS_size_median.csv"))
 
 
 ########################################
@@ -718,12 +525,12 @@ GC_stats <- GC_stats %>%
 
 GC_stats$R_GC <- paste0(GC_stats$rho_bins,": n=",GC_stats$n," ",round(GC_stats$perc,2),"%")
 
-fwrite(GC_stats,file=paste0(barcode_libs,"HF-barcodes_GC_bias.csv"))
+fwrite(GC_stats,file=paste0(barcode_libs,"HF-barcode_v1_GC_bias.csv"))
 
 
 GC_DF_text$pval <- cut(GC_DF_text$pval, c(0, 0.01, 0.05, 1))
 
-pdf(paste0(barcode_libs,"GC_plot.pdf"), width=3,height=4)
+pdf(paste0(barcode_libs,"HF-barcode_v1_GC_plot.pdf"), width=3,height=4)
 ggplot(GC_DF_text, aes(x=reorder(library,rho),y=rho)) +
   geom_col(width = 0.5)+
   coord_flip() +
@@ -740,7 +547,7 @@ dev.off()
 
 
 
-
-
 ########################################
 ########################################
+
+
