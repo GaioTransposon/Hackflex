@@ -52,6 +52,9 @@ give_counts <- function(demux) {
   df$sample_name <- gsub("<Sample name=","",df$sample_name)
   df$sample_name <- gsub(">","",df$sample_name)
   
+  # we multiply by 2 because each entry is repeated twice (R1 and R2) and we use distinct() above. 
+  df <- df %>% dplyr::mutate(counts=counts*2)
+
   return(df)
   
 }
@@ -60,19 +63,21 @@ give_counts <- function(demux) {
 
 counts_v0 <- give_counts(demux_v0)
 counts_v1 <- give_counts(demux_v1)
-
+View(counts_v0)
 
 #####
 
 # barcode contamination : 
-undet <- counts_v1 %>% dplyr::filter(sample_name == "\"Undetermined\"")
-all <- counts_v1 %>% dplyr::filter(sample_name == "\"all\"")
-barcode_contamination_rate_v1 <- undet$counts/all$counts
-
 undet <- counts_v0 %>% dplyr::filter(sample_name == "\"Undetermined\"")
 all <- counts_v0 %>% dplyr::filter(sample_name == "\"all\"")
 barcode_contamination_rate_v0 <- undet$counts/all$counts
+sample_misassignment_rate_v0 <- barcode_contamination_rate_v0^2
 
+
+undet <- counts_v1 %>% dplyr::filter(sample_name == "\"Undetermined\"")
+all <- counts_v1 %>% dplyr::filter(sample_name == "\"all\"")
+barcode_contamination_rate_v1 <- undet$counts/all$counts
+sample_misassignment_rate_v1 <- barcode_contamination_rate_v1^2
 
 #####
 
@@ -85,8 +90,6 @@ counts_v0 <- counts_v0 %>% dplyr::filter(!sample_name == "\"Undetermined\"" &
 # v1
 to_remove <- rbind(counts_v1[98:126,1], # these are the rest of the libs on that sequencing run, and the "all" 
                    counts_v1[1,1]) # this is the undetermined
-
-
 counts_v1 <- counts_v1 %>%
   dplyr::filter(str_detect(sample_name, "HF_barcode"))
 
@@ -174,7 +177,7 @@ par(mar=c(5,6,4,2)+0.1)
 #x and y labels font size with
 opar=par(ps=14)
 hist(counts_v0$counts, 
-     breaks = seq(from=1, to=10000, by=500),
+     breaks = seq(from=1, to=20000, by=500),
      main = NULL, xlab = "barcode count", ylab = "Frequency")
 dev.off()
 
@@ -184,7 +187,7 @@ pdf(paste0(barcode_libs,"barcode_v1_distribution.pdf"))
 layout(mat = matrix(c(1,2),2,1, byrow=TRUE),  height = c(1,8))
 # Draw the boxplot and the histogram 
 par(mar=c(0, 6, 1.1, 2))
-boxplot(counts_v1$counts, ylim=c(0,200000), 
+boxplot(counts_v1$counts, ylim=c(0,400000), 
         main = NULL,
         xlab = NULL,
         ylab = NULL,
@@ -199,8 +202,8 @@ boxplot(counts_v1$counts, ylim=c(0,200000),
 par(mar=c(5,6,4,2)+0.1)
 #x and y labels font size with
 opar=par(ps=14)
-hist(counts_v1$counts, xlim=c(0,200000), 
-     breaks = seq(from=1, to=200000, by=10000),
+hist(counts_v1$counts, xlim=c(0,400000), 
+     breaks = seq(from=1, to=400000, by=10000),
      main = NULL, xlab = "barcode count", ylab = "Frequency")
 dev.off()
 
@@ -217,21 +220,33 @@ complete_barcodes_v1 <- read_csv(file.path(barcode_source_data,"complete_barcode
 
 give_GC_oligo <- function(complete_barcodes) {
   
-  complete_barcodes_v0 <- complete_barcodes_v0 %>%
+  complete_barcodes <- cSplit(complete_barcodes, "BarcodeDesign_Well_Oligo", "_")
+  complete_barcodes$oligo <- NULL
+  colnames(complete_barcodes) <- c("Barcode","F","N","entire_barcode","barcode_design","plate_well","oligo")
+  
+  complete_barcodes <- complete_barcodes %>%
     distinct() %>%
     dplyr::mutate(Gs = str_count(Barcode, "G"),
                   Cs = str_count(Barcode, "C"),
                   GC_content = ((Gs+Cs) / (str_length(Barcode))*100))
+  
+  return(complete_barcodes)
 }
 
 give_GC_entire_barcode <- function(complete_barcodes) {
   
-  complete_barcodes_v0 <- complete_barcodes_v0 %>%
+  complete_barcodes <- cSplit(complete_barcodes, "BarcodeDesign_Well_Oligo", "_")
+  complete_barcodes$oligo <- NULL
+  colnames(complete_barcodes) <- c("Barcode","F","N","entire_barcode","barcode_design","plate_well","oligo")
+  
+  complete_barcodes <- complete_barcodes %>%
     distinct() %>%
-    dplyr::mutate(F5_oligo_N5 = paste0(F5, Barcode, N5),
-                  Gs = str_count(F5_oligo_N5, "G"),
-                  Cs = str_count(F5_oligo_N5, "C"),
-                  GC_content = ((Gs+Cs) / (str_length(F5_oligo_N5))*100))
+    dplyr::mutate(Gs = str_count(entire_barcode, "G"),
+                  Cs = str_count(entire_barcode, "C"),
+                  GC_content = ((Gs+Cs) / (str_length(entire_barcode))*100))
+  
+  return(complete_barcodes)
+  
 }
 
 
@@ -268,7 +283,7 @@ v1_GC_entire_barcode %>% dplyr::filter(GC_content<10)
 # GC content of entire barcodes - correlation with read counts: 
 
 v0_df <- v0_GC_entire_barcode %>% 
-  dplyr::select(`Well Position`,oligo, GC_content) %>%
+  dplyr::select(plate_well,oligo, GC_content) %>%
   pivot_wider(names_from=c(oligo), values_from=GC_content)
 GC_bias_v0 <- cbind(v0_df,counts_v0)
 GC_v0_plot <- GC_bias_v0 %>%
@@ -283,7 +298,7 @@ GC_v0_plot <- GC_bias_v0 %>%
 
 
 v1_df <- v1_GC_entire_barcode %>% 
-  dplyr::select(`Well Position`,oligo, GC_content) %>%
+  dplyr::select(plate_well,oligo, GC_content) %>%
   pivot_wider(names_from=c(oligo), values_from=GC_content)
 GC_bias_v1 <- cbind(v1_df,counts_v1)
 GC_v1_plot <- GC_bias_v1 %>%
@@ -549,5 +564,150 @@ dev.off()
 
 ########################################
 ########################################
+
+
+# OligoAnalyzer: 
+
+
+OligoAnalyzer_output_v0 <- read_excel("Hackflex/middle/OligoAnalyzer_output_v0.xlsx")
+OligoAnalyzer_output_v1 <- read_excel("Hackflex/middle/OligoAnalyzer_output_v1.xlsx")
+
+o_v0 <- OligoAnalyzer_output_v0
+o_v1 <- OligoAnalyzer_output_v1
+
+# replace name
+names(o_v0) <- gsub(x = names(o_v0), pattern = "\\Δ", replacement = "delta")  
+names(o_v1) <- gsub(x = names(o_v1), pattern = "\\Δ", replacement = "delta")  
+
+# merge counts details to OligoAnalyzer output
+c_v0 <- counts_v0 %>% dplyr::filter(!sample_name == "\"Undetermined\"" & !sample_name == "\"all\"")
+o_v0 <- cbind(rbind(c_v0,c_v0),o_v0)
+o_v0 <- cSplit(o_v0, "Name", "_")
+
+# merge counts details to OligoAnalyzer output
+c_v1 <- counts_v1 %>% dplyr::filter(!sample_name == "\"Undetermined\"" & !sample_name == "\"all\"")
+o_v1 <- cbind(rbind(c_v1,c_v1),o_v1)
+o_v1 <- cSplit(o_v1, "Name", "_")
+
+fwrite(x=o_v0, file=paste0(barcode_libs,"OligoAnalyzer_output_v0.csv"))
+fwrite(x=o_v1, file=paste0(barcode_libs,"OligoAnalyzer_output_v1.csv"))
+
+
+#######################################
+
+# MANUSCRIPT TEXT: 
+
+# barcodes v0
+
+# The estimated ΔG ranged between
+summary(o_v0$deltaG)
+
+# the average melting temperature was
+mean(o_v0$Tm)
+sd(o_v0$Tm)
+
+# low read count libs: 
+z <- o_v0 %>% dplyr::filter(counts<20)
+NROW(z)
+
+mean(z$deltaG)
+sd(z$deltaG)
+
+z %>% dplyr::select(Tm,Name_2,Name_3)
+mean(z$Tm)
+sd(z$Tm)
+
+
+
+# barcodes v1
+
+# The estimated ΔG ranged between
+summary(o_v1$deltaG)
+
+# the average melting temperature was
+mean(o_v1$Tm)
+sd(o_v1$Tm)
+
+# low read count libs: 
+z <- o_v1 %>% dplyr::filter(counts<50000)
+NROW(z)
+
+mean(z$deltaG)
+sd(z$deltaG)
+
+mean(z$Tm)
+sd(z$Tm)
+
+#######################################
+
+
+
+
+
+
+
+# manuscript info - replace 
+df <- o_v1 # or o_v1
+
+summary(df$GcContent)
+summary(df$Tm)
+summary(df$Tm)
+
+sd(df$Tm)
+summary(df$deltaG)
+
+
+# study hairpin formation of barcodes: 
+# filter barcodes that produced the lowest read counts
+# and with lowest deltaG
+z <- df %>% 
+  top_n(-6,counts) %>%
+  dplyr::select(deltaG,
+                Tm,
+                counts,
+                Name_1,
+                Name_2,
+                Name_3) %>%
+  dplyr::arrange(counts)
+z
+summary(z$Tm)
+summary(z$deltaG)
+
+
+
+# DeltaG close to 10 are dangerous
+as.data.frame(wtd.cor(df$deltaG,df$counts)) %>%
+  dplyr::mutate(label=paste0("rho=",round(correlation,2),
+                             "\n p-value=",round(p.value,2)))
+
+
+df %>%
+  ggplot(., aes(x=deltaG,y=counts, color=Name_3))+
+  geom_point(size=0.3)+
+  geom_smooth(size=0.5)+
+  labs(x="deltaG",
+       y="counts",
+       color="oligo")+
+  theme_bw() +
+  geom_text(data = dplyr::filter(df, deltaG < -8),aes(label=Name_2), 
+            size=3, check_overlap = TRUE, nudge_x = 0.1)
+
+df %>%
+  ggplot(., aes(x=Tm,y=counts, color=Name_3))+
+  geom_point(size=0.3)+
+  geom_smooth(size=0.5)+
+  labs(x="Tm",
+       y="counts",
+       color="oligo")+
+  theme_bw()
+
+df %>%
+  ggplot(., aes(x=Tm,y=counts, color=Name_3))+
+  geom_point(size=0.3)+
+  geom_smooth(size=0.5)+
+  labs(x="Tm",
+       y="counts",
+       color="oligo")+
+  theme_bw()
 
 
