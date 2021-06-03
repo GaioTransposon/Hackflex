@@ -411,7 +411,12 @@ mv kraken_report_* out/.
 # qsub -V library_processing.sh
 # 
 # ###
+# 
+# export mydir=/shared/homes/12705859/HACKLEX_LIBS/goal_barcode_v1_top20
+# export ref_genome=/shared/homes/12705859/HACKLEX_LIBS/goal_barcode_v0/source_data/E_coli_MG1655_UTS_nanopore_hybrid_500k.fa
+# qsub -V library_processing.sh
+# 
+# ###
 
 
-
-
+#ls -laSh | head -41 | awk '{print $NF}' | xargs -i cp {} ../../goal_barcode_v1_top20/source_data

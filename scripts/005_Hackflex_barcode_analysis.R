@@ -23,6 +23,7 @@ library(Rmisc)
 # set directories and select samples: 
 
 barcode_libs <- "~/Desktop/MG1655/goal_barcode/"
+barcode_libs_top_20 <- "~/Desktop/MG1655/goal_barcode_v1_top20/"
 barcode_source_data <- "~/Desktop/MG1655/goal_barcode/source_data/"
 phred_dir <- "~/Desktop/MG1655/raw_libs/"
 
@@ -39,11 +40,14 @@ demux_v1 <- read_csv(paste0(barcode_source_data, "DemultiplexingStats_v1.xml"), 
 # function to return details of read counts
 give_counts <- function(demux) {
   
-  sample_name <- demux[demux$X1 %like% "Sample name", ] %>% distinct() 
-  counts <- demux[demux$X1 %like% "<BarcodeCount>", ] %>%
-    distinct()
+  sample_name <- demux[demux$X1 %like% "Sample name", ] %>% distinct()
+  counts <- demux[demux$X1 %like% "<BarcodeCount>", ] 
+  cc <- rep(seq(1,2),NROW(counts)/2)
   
-  df <- cbind(sample_name,counts)
+  ccc <- cbind(counts,cc) %>%
+    dplyr::filter(cc==1) %>% dplyr::select(X1)
+  
+  df <- cbind(sample_name,ccc)
   colnames(df) <- c("sample_name","counts")
   
   df$counts <- gsub("</BarcodeCount>","",df$counts)
@@ -54,30 +58,17 @@ give_counts <- function(demux) {
   
   # we multiply by 2 because each entry is repeated twice (R1 and R2) and we use distinct() above. 
   df <- df %>% dplyr::mutate(counts=counts*2)
-
+  
   return(df)
   
 }
 
 
 
+
 counts_v0 <- give_counts(demux_v0)
 counts_v1 <- give_counts(demux_v1)
-View(counts_v0)
 
-#####
-
-# barcode contamination : 
-undet <- counts_v0 %>% dplyr::filter(sample_name == "\"Undetermined\"")
-all <- counts_v0 %>% dplyr::filter(sample_name == "\"all\"")
-barcode_contamination_rate_v0 <- undet$counts/all$counts
-sample_misassignment_rate_v0 <- barcode_contamination_rate_v0^2
-
-
-undet <- counts_v1 %>% dplyr::filter(sample_name == "\"Undetermined\"")
-all <- counts_v1 %>% dplyr::filter(sample_name == "\"all\"")
-barcode_contamination_rate_v1 <- undet$counts/all$counts
-sample_misassignment_rate_v1 <- barcode_contamination_rate_v1^2
 
 #####
 
@@ -176,7 +167,7 @@ boxplot(counts_v0$counts,
 par(mar=c(5,6,4,2)+0.1)
 #x and y labels font size with
 opar=par(ps=14)
-hist(counts_v0$counts, 
+hist(counts_v0$counts, cex.axis=1.1, cex.lab=1.5,
      breaks = seq(from=1, to=20000, by=500),
      main = NULL, xlab = "barcode count", ylab = "Frequency")
 dev.off()
@@ -202,7 +193,7 @@ boxplot(counts_v1$counts, ylim=c(0,400000),
 par(mar=c(5,6,4,2)+0.1)
 #x and y labels font size with
 opar=par(ps=14)
-hist(counts_v1$counts, xlim=c(0,400000), 
+hist(counts_v1$counts, xlim=c(0,400000), cex.axis=1.1, cex.lab=1.5,
      breaks = seq(from=1, to=400000, by=10000),
      main = NULL, xlab = "barcode count", ylab = "Frequency")
 dev.off()
@@ -329,16 +320,98 @@ i7_GC_rho_v1 <- as.data.frame(wtd.cor(GC_bias_v1$i7,GC_bias_v1$counts,weight=GC_
                              "\n p-value=",round(p.value,2)))
 
 
-GC_plots <- ggarrange(GC_v0_plot,GC_v1_plot, common.legend = TRUE, labels=c("C","D"))
 
-
-pdf(paste0(barcode_libs,"barcode_v0v1_GC_bias.pdf"), width=7,height=3)
-GC_plots
+pdf(paste0(barcode_libs,"barcode_v0_GC_bias.pdf"))
+GC_v0_plot +
+  theme_minimal()+
+  theme(legend.position="top",
+        axis.title=element_text(size=20),
+        axis.text=element_text(size=18),
+        legend.text=element_text(size=18),
+        legend.title=element_text(size=20))
 dev.off()
 
+pdf(paste0(barcode_libs,"barcode_v1_GC_bias.pdf"))
+GC_v1_plot +
+  theme_minimal()+
+  theme(legend.position="top",
+        axis.title=element_text(size=20),
+        axis.text=element_text(size=18),
+        legend.text=element_text(size=18),
+        legend.title=element_text(size=20))
+dev.off()
+
+########################################
+########################################
+
+# create a list of all possible barcodes combos, 
+# this list serves to demux again the HF-barcode v1 libraries, 
+# and determine the true rate of barcode cross contamination 
+
+a <- complete_barcodes_v1
+
+a <- cSplit(a, "BarcodeDesign_Well_Oligo", "_")
+
+a <- a %>% 
+  dplyr::select(BarcodeDesign_Well_Oligo_2, BarcodeDesign_Well_Oligo_3,Barcode)
+
+colnames(a) <- c("well","oligo","barcode")
+
+a <- a %>%
+  pivot_wider(names_from=oligo,values_from=barcode)
+
+all_possibilities <- expand.grid(a$i5,a$i7)
+colnames(all_possibilities) <- c("i5","i7")
+
+all_possibilities$name <- paste0("x",seq(1,9216))
+all_possibilities <- all_possibilities%>% 
+  dplyr::select(name,i5,i7)
+
+fwrite(all_possibilities, file = paste0(barcode_libs,paste0("all_possibilities_v1.csv")))
+
+########################################
+########################################
+
+# samples has been demuxed using all possible barcode combos "all_possibilities", producing file "DemultiplexingStats_v1_allcombos.xml"
+
+# open file
+demux_v1_allcombos <- read_csv(paste0(barcode_source_data, "DemultiplexingStats_v1_allcombos.xml"), 
+                               col_names = FALSE)
+
+# parse
+counts_v1_allcombos <- give_counts(demux_v1_allcombos)
+
+
+
+
+
+# to determine which samples match "in_run" vs which samples below to other barcode combos
+# get list of names that were included in the sequencing run (includes HF barcode v1 libs and other libs)
+
+X <- read_excel("Downloads/20210519_read_counts (1).xlsx", skip = 2)
+
+colnames(X) <- c("index","bio1","library","i7","i5","reads")
+X <- X %>% dplyr::select(library,i5,i7)
+
+XX <- inner_join(X,all_possibilities)
+names_in_run <- XX$name
+names_in_run <- paste0('"', names_in_run, '"')
+
+
+in_run <- counts_v1_allcombos[counts_v1_allcombos$sample_name %in% names_in_run,]
+
+
+# determine barcode contamination 
+not_in_run2 <- not_in_run %>% dplyr::filter(!sample_name=="\"Undetermined\"" & !sample_name=="\"all\"")
+barcode_cross_contam_true <- sum(not_in_run2$counts)/(sum(not_in_run2$counts)+sum(in_run$counts))
+
+# what went into "undetermined" this time, is the reads with barcodes with sequencing errors. 
+not_in_run1 <- not_in_run %>% dplyr::filter(!sample_name=="\"all\"")
+barcode_cross_contam_includes_undetermined <- sum(not_in_run1$counts)/(sum(not_in_run1$counts)+sum(in_run$counts))
 
 ################################################################################
 ################################################################################
+
 
 
 # Analysis of Hackflex barcode libraries based on insert size, GC bias, and coverage 
@@ -377,7 +450,7 @@ x <- cbind(read_lengths[,1:4],n_reads[,2:4], n_bp[,2:4])
 to_paste <- c("", rep("avg read length",3), rep("# reads",3), rep("# bp",3))
 colnames(x) <- paste(to_paste, colnames(x), sep = " ")
 
-fwrite(x=x, file=paste0(barcode_libs,paste0("HF-barcode_v1_lib_processing_stats.csv")))
+fwrite(x=x, file=paste0(barcode_libs,paste0("HF-barcode_v1_lib_proc_stats.csv")))
 
 # coverage 
 mean(x$`# bp after_cleaning`)/4600000
@@ -467,7 +540,7 @@ fwrite(IS_stats2,file=paste0(barcode_libs,"HF-barcode_v1_IS_size_median.csv"))
 # GC content - Picard
 
 
-gc_files <- grep(list.files(barcode_libs,pattern="^picardGC_red"), 
+gc_files <- grep(list.files(barcode_libs_top_20,pattern="^picardGC_red"), 
                  pattern='.txt', value=TRUE)
 
 
@@ -490,16 +563,18 @@ for (gc_file in gc_files) {
   id <- gsub(".dedup.txt","",id)
   
   # read in files
-  gc_df <- read_delim(file.path(barcode_libs,gc_file),
+  gc_df <- read_delim(file.path(barcode_libs_top_20,gc_file),
                       "\t", escape_double = FALSE, trim_ws = TRUE, skip = 6)
   
   # rename the library and select cols
   gc_df <- gc_df %>%
+    dplyr::filter(MEAN_BASE_QUALITY>20) %>%
     dplyr::mutate(library=paste0(id)) %>%
     dplyr::select(GC,WINDOWS,MEAN_BASE_QUALITY,NORMALIZED_COVERAGE,library) %>%
     dplyr::filter(NORMALIZED_COVERAGE>0)
   
-  head(gc_df)
+  #head(gc_df)
+  summary(gc_df$NORMALIZED_COVERAGE)
   
   # get correlation between GC content and ratio, using fraction of reads as weight
   rho <- wtd.cor(gc_df$GC,
@@ -530,6 +605,12 @@ GC_DF_text <- GC_DF %>% dplyr::select(library,rho,pval) %>%
                                   round(pval,3)))
 
 
+mean(GC_DF_text$rho)
+sd(GC_DF_text$rho)
+median(GC_DF_text$rho)
+var(GC_DF_text$rho)
+
+
 GC_stats <- GC_DF_text
 GC_stats$rho_bins <- cut(GC_stats$rho, c(-1, -0.8, -0.6, -0.4, -0.2, 0, 
                                                0.2, 0.4, 0.6, 0.8, 1))
@@ -540,12 +621,12 @@ GC_stats <- GC_stats %>%
 
 GC_stats$R_GC <- paste0(GC_stats$rho_bins,": n=",GC_stats$n," ",round(GC_stats$perc,2),"%")
 
-fwrite(GC_stats,file=paste0(barcode_libs,"HF-barcode_v1_GC_bias.csv"))
+fwrite(GC_stats,file=paste0(barcode_libs,"HF-barcode_v1top20_GC_bias.csv"))
 
 
 GC_DF_text$pval <- cut(GC_DF_text$pval, c(0, 0.01, 0.05, 1))
 
-pdf(paste0(barcode_libs,"HF-barcode_v1_GC_plot.pdf"), width=3,height=4)
+pdf(paste0(barcode_libs,"HF-barcode_v1top20_GC_plot.pdf"), width=3,height=4)
 ggplot(GC_DF_text, aes(x=reorder(library,rho),y=rho)) +
   geom_col(width = 0.5)+
   coord_flip() +

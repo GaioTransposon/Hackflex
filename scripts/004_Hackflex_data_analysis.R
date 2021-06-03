@@ -543,8 +543,6 @@ for (gc_file in gc_files) {
 head(GC_DF)
 
 pic2 <- GC_DF
-
-
 mymax <- max(pic2$NORMALIZED_COVERAGE)
 
 pic2_text <- pic2 %>% dplyr::select(library,rho,pval,n_obs) %>%
@@ -555,6 +553,7 @@ pic2_text <- pic2 %>% dplyr::select(library,rho,pval,n_obs) %>%
                                  round(rho,3)),
                 label_pval=paste0("p=",
                                   round(pval,3)))
+
 
 fwrite(pic2_text,file = paste0(mydir,species,"_",goal,"_GC_bias.csv"))
 
@@ -636,26 +635,20 @@ df_to_fill_bed <- df_to_fill_bed %>%
 df_to_fill_bed$library <- as.factor(df_to_fill_bed$library)
 df_to_fill_bed <- reorder_lib_fun(df_to_fill_bed)
 
+# keep contigs larger than 100,000 bp
+# this is keeping 1 largest contig for E. coli, 
+# 18 largest contigs for P. aeruginosa (sum of which 5.5Mb)
+# 1 largest contigs for S. aureus 
+keep_contigs <- df_to_fill_bed %>%
+  group_by(contig) %>%
+  dplyr::summarize(max=max(position)) %>%
+  dplyr::filter(max>=100000)
 
-# keep contigs larger than 1Mbp ; needs to be done for P. aeruginosa only as the assembly is made out of 46 contigs
-if (species=="Pa") {  
-  
-  # if P. aeruginosa....
-  df_to_fill_bed$contig_n <- str_sub(df_to_fill_bed$contig, -2, -1)
-  df_to_fill_bed$contig_n <- gsub("_","",df_to_fill_bed$contig_n)
-  df_to_fill_bed$contig_n <- as.numeric(df_to_fill_bed$contig_n)
-  keep_contigs <- df_to_fill_bed %>%
-    group_by(contig_n) %>%
-    dplyr::summarize(max=max(position)) %>%
-    dplyr::filter(max>=100000) %>%
-    dplyr::select(contig_n) %>%
-    distinct()
-  df_to_fill_bed <- df_to_fill_bed %>%
-    dplyr::filter(contig_n %in% keep_contigs$contig_n)
-  
-}
+df_to_fill_bed <- df_to_fill_bed %>% 
+  dplyr::filter(contig %in% keep_contigs$contig) 
 
 
+# create text for figures
 text <- df_to_fill_bed %>%
   group_by(library) %>% 
   dplyr::mutate(mean=mean(coverage),
@@ -666,6 +659,9 @@ text <- df_to_fill_bed %>%
   dplyr::mutate(label=paste0("mean=",round(mean,2),
                              "\n sd=",round(sd,2),
                              "\n zero=", zeros))
+
+fwrite(x=text, file=paste0(mydir,paste0(species,"_",goal,"_coverage.csv")))
+
 
 p1 <- df_to_fill_bed %>% 
   group_by(library,coverage) %>%

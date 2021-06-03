@@ -22,6 +22,9 @@ plots_fold <- Supplementary_Table_1 %>%
   geom_point(size=1,aes(shape = comparison)) +
   scale_shape_manual(values=c(3, 17)) +
   geom_line() +
+  labs(y="fold reduction in price") +
+  xlim(-10,5050) +
+  ylim(-1,15) +
   theme_bw()+
   theme(legend.title = element_blank(),
         legend.position="top",

@@ -155,7 +155,8 @@ df_to_fill_insert_size %>%
   dplyr::select(library,insert_size,spp, type) %>%
   ggplot(., aes(insert_size, group=type)) + 
   facet_grid(rows = vars(spp), scales = "free") +
-  geom_line(stat='density', aes(linetype = type), size = 1.2, color="darkgreen") +
+  geom_line(stat='density', aes(linetype = type, color=type), size = 1.2) +
+  scale_color_manual(values = c("darkgreen", "green"))+
   geom_line(stat='density', size = 0.2, color="darkgreen") +
   scale_linetype_manual(values=c("dashed", "dotted")) +
   theme_bw() + 
@@ -220,14 +221,19 @@ assembly_data <- assembly_data %>%
 
 head(assembly_data)
 
+z <- assembly_data %>%
+  dplyr::select(downsampling,library,scaf_L50,scaf_N50) %>%
+  dplyr::filter(downsampling<60)
+
+
 contig_bp <- assembly_data %>%
-  dplyr::filter(downsampling<55) %>%
-  ggplot(., aes(x=downsampling, y= contig_bp, group=type)) + 
-  facet_grid(rows = vars(spp), scales = "free") +
-  geom_point(color="darkgreen", size = 1.4) +
-  geom_line(aes(linetype = type), size = 1, color="darkgreen") +
-  geom_line(size = 0.2, color="darkgreen") +
-  scale_linetype_manual(values=c("dashed", "dotted")) +
+  dplyr::filter(downsampling<50) %>%
+  ggplot(., aes(x=downsampling, y= contig_bp)) + 
+  scale_color_manual(values = c("blue", 
+                                "magenta1", 
+                                "green"))+ 
+  geom_line(aes(colour = factor(spp),
+                linetype = factor(type))) +
   theme_bw() + 
   theme(panel.border = element_blank(), 
         panel.grid.major = element_blank(), 
@@ -243,14 +249,15 @@ contig_bp <- assembly_data %>%
   labs(x="downsampling size (coverage depth)",
        y="assembly size (bp)")
 
+
 L50 <- assembly_data %>%
-  dplyr::filter(downsampling<55) %>%
-  ggplot(., aes(x=downsampling, y= ctg_N50, group=type)) + 
-  facet_grid(rows = vars(spp), scales = "free") +
-  geom_point(color="darkgreen", size = 1.4) +
-  geom_line(aes(linetype = type), size = 1, color="darkgreen") +
-  geom_line(size = 0.2, color="darkgreen") +
-  scale_linetype_manual(values=c("dashed", "dotted")) +
+  dplyr::filter(downsampling<75) %>%
+  ggplot(., aes(x=downsampling, y= ctg_N50)) + 
+  scale_color_manual(values = c("blue", 
+                                "magenta1", 
+                                "green"))+ 
+  geom_line(aes(colour = factor(spp),
+                linetype = factor(type))) +
   theme_bw() + 
   theme(panel.border = element_blank(), 
         panel.grid.major = element_blank(), 
@@ -267,13 +274,13 @@ L50 <- assembly_data %>%
        y="assembly L50")
 
 N50 <- assembly_data %>%
-  dplyr::filter(downsampling<55) %>%
-  ggplot(., aes(x=downsampling, y= ctg_L50, group=type)) + 
-  facet_grid(rows = vars(spp), scales = "free") +
-  geom_point(color="darkgreen", size = 1.4) +
-  geom_line(aes(linetype = type), size = 1, color="darkgreen") +
-  geom_line(size = 0.2, color="darkgreen") +
-  scale_linetype_manual(values=c("dashed", "dotted")) +
+  dplyr::filter(downsampling<200) %>%
+  ggplot(., aes(x=downsampling, y= ctg_L50)) + 
+  scale_color_manual(values = c("blue", 
+                                "magenta1", 
+                                "green"))+ 
+  geom_line(aes(colour = factor(spp),
+                linetype = factor(type))) +
   theme_bw() + 
   theme(panel.border = element_blank(), 
         panel.grid.major = element_blank(), 
@@ -290,14 +297,33 @@ N50 <- assembly_data %>%
        y="assembly N50")
 
 
-L90 <- assembly_data %>%
-  dplyr::filter(downsampling<55) %>%
-  ggplot(., aes(x=downsampling, y= ctg_N90, group=type)) + 
-  facet_grid(rows = vars(spp), scales = "free") +
-  geom_point(color="darkgreen", size = 1.4) +
-  geom_line(aes(linetype = type), size = 1, color="darkgreen") +
-  geom_line(size = 0.2, color="darkgreen") +
-  scale_linetype_manual(values=c("dashed", "dotted")) +
+
+theme_smaller <- theme(axis.text=element_text(size=9),
+                       axis.title=element_text(size=11), 
+                       legend.position="none")
+
+all <- ggarrange(contig_bp + theme_smaller + rremove("xlab"), 
+                 N50 + theme_smaller + rremove("xlab"), 
+                 L50 + theme_smaller + rremove("xlab"), 
+                 nrow = 1, ncol=3, 
+                 labels=c("B","C","D"))
+
+all2 <- annotate_figure(all,
+                        bottom = textGrob("downsampling depth", gp = gpar(cex = 1.1)))
+
+all2
+
+
+unique(df_to_fill_insert_size$spp)
+
+
+IS_plot <- df_to_fill_insert_size %>% 
+  dplyr::select(library,insert_size,spp, type) %>%
+  ggplot(., aes(insert_size)) + 
+  geom_line(stat='density', aes(linetype = type, color=spp)) +
+  scale_color_manual(values = c("blue", 
+                                "magenta1", 
+                                "green"))+ 
   theme_bw() + 
   theme(panel.border = element_blank(), 
         panel.grid.major = element_blank(), 
@@ -305,47 +331,22 @@ L90 <- assembly_data %>%
         axis.line = element_line(colour = "black"),
         legend.title = element_blank(),
         legend.position = "top",
-        axis.text=element_text(size=15),
-        axis.title=element_text(size=20), 
-        strip.text.y = element_text(size = 15, 
-                                    colour = "black", 
-                                    angle = 270)) +
-  labs(x="downsampling size (coverage depth)",
-       y="assembly L90")
+        axis.text=element_text(size=10),
+        axis.title=element_text(size=14), 
+        axis.ticks.y = element_blank(),
+        axis.text.y = element_blank()) +
+  labs(x="insert size (bp)")
 
+IS_plot <- ggarrange(IS_plot, labels = c("A"))
 
-pdf(paste0(out_dir,"size_sel_assembly_length.pdf"))
-contig_bp
+pdf(paste0(out_dir,"size_sel_final.pdf"))
+ggarrange(IS_plot,all2,nrow = 2, common.legend = TRUE)
 dev.off()
 
-pdf(paste0(out_dir,"size_sel_assembly_N50.pdf"))
-N50
-dev.off()
 
-pdf(paste0(out_dir,"size_sel_assembly_L50.pdf"))
-L50
-dev.off()
-  
-pdf(paste0(out_dir,"size_sel_assembly_L90.pdf"))
-L90
-dev.off()
 
-theme_smaller <- theme(axis.text=element_text(size=7),
-                       axis.title=element_text(size=9), 
-                       strip.text.y = element_text(size = 7, 
-                                                   colour = "black", 
-                                                   angle = 270))
 
-all <- ggarrange(contig_bp + theme_smaller, 
-                 N50 + theme_smaller, 
-                 L50 + theme_smaller, 
-                 L90 + theme_smaller, 
-                 nrow = 2, ncol=2, 
-                 common.legend = TRUE, labels=c("A","B","C","D"))
 
-pdf(paste0(out_dir,"size_sel_assembly_all.pdf"))
-all
-dev.off()
 
 
 # some info for manuscript: 
